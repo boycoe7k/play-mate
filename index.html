@@ -1,0 +1,228 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0a0a">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="PLAY Mate - The ultimate destination for premium movie and series streaming. Watch the latest films, TV shows, and live sports in stunning HD without ads.">
+    <meta name="keywords" content="premium streaming, free movies, watch series online, live tv, hd movies, slflix pro, moviebox, anime streaming">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    
+    <!-- Dynamic SEO Tags -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="PLAY Mate | Movies, Series & Live TV">
+    <meta property="og:description" content="Experience high-quality streaming with PLAY Mate. No registration required, just pure entertainment.">
+    <meta property="og:site_name" content="PLAY Mate">
+    <meta property="og:image" content="/icons/playmate.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+
+    <meta property="og:url" content="https://sl-flix.dixonomega.tech">
+    
+    <!-- Twitter Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="PLAY Mate | Watch Movies & Series Online Free">
+    <meta name="twitter:description" content="Stream Movies, Series, and Anime in HD. No ads, just entertainment.">
+    <meta name="twitter:image" content="/icons/playmate.png">
+    
+    <!-- Favicon & Icons -->
+    <link rel="icon" type="image/png" href="/icons/playmate.png">
+    <link rel="shortcut icon" href="/icons/playmate.png">
+    <link rel="apple-touch-icon" href="/icons/playmate.png">
+    
+    <title>PLAY Mate | Movies, Series & Live TV</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#00e5ff',
+                        'primary-glow': 'rgba(0, 229, 255, 0.4)',
+                        accent: '#f40af0',
+                        bg: '#0a0a0f',
+                        'card-bg': '#161625',
+                        border: 'rgba(255,255,255,0.1)',
+                    },
+                    fontFamily: {
+                        sans: ['Manrope', 'sans-serif'],
+                    },
+                    screens: {
+                        'xs': '400px',
+                        '3xl': '1920px',
+                    },
+                    animation: {
+                        'spin-slow': 'spin 3s linear infinite',
+                        'fade-in': 'fadeIn 0.4s ease-out forwards',
+                        'bounce-slow': 'bounce 3s infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .loader {
+            --path: white;
+            --dot: #f40af0;
+            --duration: 3s;
+            width: 44px;
+            height: 44px;
+            position: relative;
+            display: inline-block;
+            margin: 0 16px;
+        }
+        .loader:before {
+            content: "";
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            position: absolute;
+            display: block;
+            background: var(--dot);
+            top: 37px;
+            left: 19px;
+            transform: translate(-18px, -18px);
+            -webkit-animation: dotRect var(--duration) cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+                    animation: dotRect var(--duration) cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+        }
+        .loader svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .loader svg rect,
+        .loader svg polygon,
+        .loader svg circle {
+            fill: none;
+            stroke: var(--path);
+            stroke-width: 10px;
+            stroke-linejoin: round;
+            stroke-linecap: round;
+        }
+        .loader svg polygon {
+            stroke-dasharray: 145 76 145 76;
+            stroke-dashoffset: 0;
+            -webkit-animation: pathTriangle var(--duration) cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+                    animation: pathTriangle var(--duration) cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+        }
+        .loader svg rect {
+            stroke-dasharray: 192 64 192 64;
+            stroke-dashoffset: 0;
+            -webkit-animation: pathRect 3s cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+                    animation: pathRect 3s cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+        }
+        .loader svg circle {
+            stroke-dasharray: 150 50 150 50;
+            stroke-dashoffset: 75;
+            -webkit-animation: pathCircle var(--duration) cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+                    animation: pathCircle var(--duration) cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+        }
+        .loader.triangle { width: 48px; }
+        .loader.triangle:before {
+            left: 21px;
+            transform: translate(-10px, -18px);
+            -webkit-animation: dotTriangle var(--duration) cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+                    animation: dotTriangle var(--duration) cubic-bezier(0.785, 0.135, 0.15, 0.86) infinite;
+        }
+        
+        @-webkit-keyframes pathTriangle { 33% { stroke-dashoffset: 74; } 66% { stroke-dashoffset: 147; } 100% { stroke-dashoffset: 221; } }
+        @keyframes pathTriangle { 33% { stroke-dashoffset: 74; } 66% { stroke-dashoffset: 147; } 100% { stroke-dashoffset: 221; } }
+        @-webkit-keyframes dotTriangle { 33% { transform: translate(0, 0); } 66% { transform: translate(10px, -18px); } 100% { transform: translate(-10px, -18px); } }
+        @keyframes dotTriangle { 33% { transform: translate(0, 0); } 66% { transform: translate(10px, -18px); } 100% { transform: translate(-10px, -18px); } }
+        @-webkit-keyframes pathRect { 25% { stroke-dashoffset: 64; } 50% { stroke-dashoffset: 128; } 75% { stroke-dashoffset: 192; } 100% { stroke-dashoffset: 256; } }
+        @keyframes pathRect { 25% { stroke-dashoffset: 64; } 50% { stroke-dashoffset: 128; } 75% { stroke-dashoffset: 192; } 100% { stroke-dashoffset: 256; } }
+        @-webkit-keyframes dotRect { 25% { transform: translate(0, 0); } 50% { transform: translate(18px, -18px); } 75% { transform: translate(0, -36px); } 100% { transform: translate(-18px, -18px); } }
+        @keyframes dotRect { 25% { transform: translate(0, 0); } 50% { transform: translate(18px, -18px); } 75% { transform: translate(0, -36px); } 100% { transform: translate(-18px, -18px); } }
+        @-webkit-keyframes pathCircle { 25% { stroke-dashoffset: 125; } 50% { stroke-dashoffset: 175; } 75% { stroke-dashoffset: 225; } 100% { stroke-dashoffset: 275; } }
+        @keyframes pathCircle { 25% { stroke-dashoffset: 125; } 50% { stroke-dashoffset: 175; } 75% { stroke-dashoffset: 225; } 100% { stroke-dashoffset: 275; } }
+
+        body {
+            background-color: #0a0a0a;
+            color: #ffffff;
+            overflow-x: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00e5ff; }
+
+        /* Hide scrollbar for horizontal containers but keep functionality */
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        
+        /* Safe Area for iPhones with Notch */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .pt-safe {
+            padding-top: env(safe-area-inset-top);
+        }
+
+        /* PLAY Mate design system: white-first, mobile-first, soft glass cards. */
+        :root { color-scheme: light; }
+        .playmate-app { min-height: 100vh; background: #f6fbfd; color: #10233f; transition: background .25s ease, color .25s ease; }
+        .playmate-light { --pm-bg:#f6fbfd; --pm-card:#ffffff; --pm-text:#10233f; --pm-muted:#6b7b90; --pm-border:#dcebf0; --pm-soft:#eef8fa; --pm-accent:#12cfa5; --pm-blue:#10aee8; }
+        .playmate-dark { --pm-bg:#071018; --pm-card:#101b25; --pm-text:#f5fbff; --pm-muted:#9cafbd; --pm-border:rgba(255,255,255,.10); --pm-soft:#13232e; --pm-accent:#20d5ad; --pm-blue:#20b9ed; color-scheme:dark; }
+        .playmate-app.playmate-light { background:var(--pm-bg); color:var(--pm-text); }
+        .playmate-app.playmate-dark { background:var(--pm-bg); color:var(--pm-text); }
+        .playmate-nav { background:rgba(255,255,255,.92); border-color:var(--pm-border); backdrop-filter:blur(18px); color:var(--pm-text); box-shadow:0 4px 24px rgba(25,95,120,.05); }
+        .playmate-dark .playmate-nav { background:rgba(10,22,31,.92); box-shadow:none; }
+        .playmate-brand { color:var(--pm-text)!important; }
+        .playmate-brand span { color:#12bfe1!important; }
+        .playmate-icon-btn { width:40px;height:40px;border-radius:14px;border:1px solid var(--pm-border);background:var(--pm-soft);color:var(--pm-text);display:flex;align-items:center;justify-content:center;transition:.2s; }
+        .playmate-icon-btn:hover { transform:translateY(-1px); color:#08a8d9; border-color:#a8dfe9; }
+        .playmate-dock { background:rgba(255,255,255,.94)!important; border-color:#dcebf0!important; box-shadow:0 12px 35px rgba(40,100,125,.15); }
+        .playmate-dark .playmate-dock { background:rgba(16,27,37,.94)!important; border-color:rgba(255,255,255,.10)!important; box-shadow:0 14px 40px rgba(0,0,0,.4); }
+        .playmate-dock-icon { color:var(--pm-muted); }
+        .playmate-tooltip { background:var(--pm-card); color:var(--pm-text); border-color:var(--pm-border); }
+        /* Re-map the existing dark Tailwind utility palette in light mode so existing screens inherit the new visual language. */
+        .playmate-light [class*="bg-[#0a0a15]"], .playmate-light [class*="bg-[#0a0a0f]"], .playmate-light [class*="bg-[#0a0a0a]"], .playmate-light [class*="bg-[#12121a]"], .playmate-light [class*="bg-[#141414]"], .playmate-light [class*="bg-[#161625]"] { background-color:var(--pm-card)!important; }
+        .playmate-light [class*="text-white"] { color:var(--pm-text)!important; }
+        .playmate-light [class*="text-gray-300"], .playmate-light [class*="text-gray-400"], .playmate-light [class*="text-gray-500"], .playmate-light [class*="text-gray-600"] { color:var(--pm-muted)!important; }
+        .playmate-light [class*="border-white/10"], .playmate-light [class*="border-white/5"], .playmate-light [class*="border-white/20"] { border-color:var(--pm-border)!important; }
+        .playmate-light [class*="bg-white/5"], .playmate-light [class*="bg-white/10"] { background-color:var(--pm-soft)!important; }
+        .playmate-light [class*="bg-black/90"], .playmate-light [class*="bg-black/80"], .playmate-light [class*="bg-[#0a0a15]/"] { background-color:rgba(255,255,255,.96)!important; }
+        .playmate-light input, .playmate-light select, .playmate-light textarea { color:var(--pm-text)!important; background:#fff!important; border-color:var(--pm-border)!important; }
+        .playmate-light ::placeholder { color:#93a4b5!important; }
+        .playmate-light .shadow-2xl { box-shadow:0 18px 50px rgba(48,103,125,.13)!important; }
+        .playmate-light [class*="bg-gradient-to-r"], .playmate-light [class*="bg-gradient-to-t"] { --tw-gradient-from:#ffffff!important; }
+        .playmate-light .text-primary { color:#08b99b!important; }
+        .playmate-light .bg-primary { background-color:#16cda7!important; }
+        .playmate-light .border-primary { border-color:#16cda7!important; }
+        .playmate-light .ring-primary { --tw-ring-color:#16cda7!important; }
+        .playmate-light .hover\:text-primary:hover { color:#08a8d9!important; }
+        .playmate-light .hover\:bg-primary\/10:hover { background-color:#e8fbf6!important; }
+        .playmate-light .hover\:border-primary\/30:hover { border-color:#8adfce!important; }
+        .playmate-light .drop-shadow-\[0_0_8px_rgba\(0\,229px\,255\,0\.8\)\] { filter:none!important; }
+        .playmate-dark .playmate-app { background:var(--pm-bg); }
+        @media (max-width:640px) { .playmate-nav { height:64px; } .playmate-dock { max-width:calc(100vw - 20px)!important; gap:8px!important; padding:7px 10px!important; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <!-- App Entry Point -->
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>

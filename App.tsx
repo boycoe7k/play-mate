@@ -1,0 +1,1156 @@
+import React, { useState, useEffect, useRef, useCallback, Suspense, Component, ErrorInfo } from 'react';
+import { LazyLoadImage } from 'react-lazy-load-image-component';
+import 'react-lazy-load-image-component/src/effects/blur.css';
+import { ApiService, RANKING_CATEGORIES } from './services/api';
+import { updateMetaTags, resetToHomeSEO } from './services/seo';
+import { CategoryData, MovieResult, VideoSource, Subtitle, ImdbSuggestion, MovieDub } from './types';
+import Loader from './components/Loader';
+import MovieCard from './components/MovieCard';
+import VideoPlayer from './components/VideoPlayer';
+import HomePage from './components/HomePage';
+import LiveTv from './components/LiveTv';
+import LiveTvStreamPlayer from './components/LiveTvStreamPlayer';
+import NetworkStatusNotifier from './components/NetworkStatusNotifier';
+import PWAInstallButton from './components/PWAInstallButton';
+import { Dock, DockIcon, DockItem, DockLabel } from "./components/Dock";
+import NewsView from './components/NewsView';
+import WebtoonView from './components/WebtoonView';
+import WebtoonReader from './components/WebtoonReader';
+import AdultView from './components/AdultView';
+import ApiDocsView from './components/ApiDocsView';
+import StaffView from './components/StaffView';
+import { useHomeData } from './hooks/useHomeData';
+import { useMovieDetails } from './hooks/useMovieDetails';
+import { getOptimizedImageUrl, DEFAULT_FAVICON_FALLBACK } from './utils/image';
+import BulkDownloadModal from './components/BulkDownloadModal';
+import { 
+  StarIcon, PlayIcon, PlusIcon, ShareIcon, BackIcon,
+  ChevronRightIcon, CalendarIcon, TagIcon, HeartIcon, FilmIcon, TvIcon, 
+  GlobeIcon, EpisodeIcon, InfoIcon, YoutubeIcon, CheckIcon, SpinnerIcon, CopyIcon
+} from './components/Icons';
+import { RetroTvError } from './components/RetroTvError';
+
+export class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean, error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-[#0a0a15] flex flex-col items-center justify-center p-4">
+          <RetroTvError errorCode="500" errorMessage="SYS FAULT" />
+          <p className="mt-8 text-gray-400 font-mono text-xs max-w-lg text-center break-all">
+            {this.state.error?.toString()}
+          </p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-6 px-6 py-2 bg-primary text-black font-bold rounded-lg hover:scale-105 transition-transform"
+          >
+            REBOOT SYSTEM
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+interface SearchState {
+    query: string;
+    results: MovieResult[];
+    loading: boolean;
+    hasMore: boolean;
+    nextPage: number;
+    loadingMore: boolean;
+}
+interface ToastState {
+    show: boolean;
+    message: string;
+    type: 'success' | 'error' | 'info';
+    timeoutId?: ReturnType<typeof setTimeout>;
+}
+const Toast: React.FC<ToastState> = ({ show, message, type }) => {
+    if (!show) return null;
+    const colors = { success: 'border-primary', error: 'border-red-500', info: 'border-blue-500' };
+    const icons = { success: 'fa-check-circle', error: 'fa-exclamation-circle', info: 'fa-info-circle' };
+    const iconColors = { success: 'text-primary', error: 'text-red-500', info: 'text-blue-500' };
+    return (
+        <div className={`fixed top-20 right-4 z-[3000] animate-fade-in px-6 py-4 rounded-xl border ${colors[type]} bg-black/90 shadow-2xl backdrop-blur-md flex items-center gap-3`}>
+            <i className={`fa-solid ${icons[type]} ${iconColors[type]}`}></i>
+            <span className="font-semibold text-white text-sm">{message}</span>
+        </div>
+    );
+};
+const LoadingView: React.FC = () => (
+    <div className="fixed inset-0 z-[5000] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center animate-fade-in">
+        <Loader />
+    </div>
+);
+const SourceSelector: React.FC<{
+    isOpen: boolean;
+    sources: VideoSource[];
+    subtitles?: Subtitle[];
+    title?: string;
+    poster?: string;
+    mediaType?: string;
+    season?: number;
+    episode?: number;
+    onClose: () => void;
+    onSelect: (source: VideoSource) => void;
+    onToast: (msg: string) => void;
+}> = ({ isOpen, sources, subtitles, title, poster, mediaType, season, episode, onClose, onSelect, onToast }) => {
+    const [downloading, setDownloading] = useState<string | null>(null);
+    const [mode, setMode] = useState<'watch' | 'download'>('watch');
+    if (!isOpen) return null;
+    const handleDownload = (e: React.MouseEvent, source: VideoSource) => {
+        e.stopPropagation();
+        const link = source.download || source.direct || source.stream;
+        if (!link) return;
+        const key = source.label || String(source.quality);
+        setDownloading(key);
+        onToast('Preparing download link...');
+        const anchor = document.createElement('a');
+        anchor.href = link;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.setAttribute('download', '');
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        setTimeout(() => setDownloading(null), 2200);
+    };
+    const quality = (s: VideoSource) => String(s.quality || 'AUTO').toUpperCase().replace('P', '') + (String(s.quality || '').match(/p/i) ? 'P' : '');
+    return (
+        <div className="fixed inset-0 z-[2500] bg-black/80 backdrop-blur-xl flex items-end sm:items-center justify-center animate-fade-in" onClick={onClose}>
+            <div className="w-full sm:max-w-2xl max-h-[94vh] overflow-y-auto rounded-t-[28px] sm:rounded-[28px] bg-[var(--pm-card)] text-[var(--pm-text)] border border-[var(--pm-border)] shadow-2xl" onClick={e => e.stopPropagation()}>
+                <div className="relative aspect-video bg-black overflow-hidden sm:rounded-t-[28px]">
+                    {poster ? <img src={getOptimizedImageUrl(poster, 1000)} alt="" className="w-full h-full object-cover opacity-90" /> : <div className="w-full h-full bg-gradient-to-br from-slate-900 to-slate-700" />}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/20" />
+                    <button onClick={onClose} className="absolute top-3 right-3 w-10 h-10 rounded-full bg-black/55 text-white flex items-center justify-center backdrop-blur-md"><i className="fa-solid fa-xmark" /></button>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-16 h-16 rounded-full bg-white/95 text-black flex items-center justify-center shadow-2xl"><i className="fa-solid fa-play ml-1 text-xl" /></div>
+                    </div>
+                    <div className="absolute bottom-4 left-4 right-4">
+                        <h2 className="text-xl sm:text-2xl font-extrabold text-white truncate">{title || 'PLAY Mate'}</h2>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-white/75">
+                            <span>{mediaType || 'Movie'}</span>{season ? <><span>•</span><span>Season {String(season).padStart(2,'0')}</span></> : null}{episode ? <><span>•</span><span>Episode {String(episode).padStart(2,'0')}</span></> : null}
+                        </div>
+                    </div>
+                </div>
+                <div className="p-4 sm:p-6">
+                    <div className="flex items-center justify-between gap-3 mb-5">
+                        <div>
+                            <p className="text-[11px] font-extrabold uppercase tracking-[.16em] text-[var(--pm-muted)]">Resource</p>
+                            <p className="text-sm font-semibold mt-1">Choose a quality to {mode === 'watch' ? 'watch' : 'download'}</p>
+                        </div>
+                        <div className="flex rounded-full p-1 bg-[var(--pm-soft)] border border-[var(--pm-border)]">
+                            <button onClick={() => setMode('watch')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${mode === 'watch' ? 'bg-[var(--pm-accent)] text-black' : 'text-[var(--pm-muted)]'}`}><i className="fa-solid fa-play mr-1"/> Watch</button>
+                            <button onClick={() => setMode('download')} className={`px-3 py-1.5 rounded-full text-xs font-bold transition ${mode === 'download' ? 'bg-[var(--pm-accent)] text-black' : 'text-[var(--pm-muted)]'}`}><i className="fa-solid fa-download mr-1"/> Download</button>
+                        </div>
+                    </div>
+                    {subtitles && subtitles.length > 0 && (
+                        <div className="mb-4 flex items-center gap-3 rounded-2xl p-3 bg-[var(--pm-soft)] border border-[var(--pm-border)]">
+                            <div className="w-9 h-9 rounded-xl bg-[var(--pm-accent)]/15 text-[var(--pm-accent)] flex items-center justify-center"><i className="fa-solid fa-closed-captioning" /></div>
+                            <div><p className="text-sm font-bold">Subtitles available</p><p className="text-xs text-[var(--pm-muted)]">{subtitles.length} language{ subtitles.length === 1 ? '' : 's' } detected</p></div>
+                        </div>
+                    )}
+                    <div className="space-y-2.5">
+                        {sources.map((s, i) => {
+                            const key = s.label || String(s.quality);
+                            const isDownloading = downloading === key;
+                            return <div key={i} className="flex items-center gap-2 p-2.5 rounded-2xl bg-[var(--pm-soft)] border border-[var(--pm-border)] hover:border-[var(--pm-accent)]/40 transition">
+                                <div className="w-14 h-12 rounded-xl bg-[var(--pm-card)] border border-[var(--pm-border)] flex flex-col items-center justify-center shrink-0">
+                                    <span className="font-black text-sm">{quality(s)}</span>
+                                    {s.type === 'hls' && <span className="text-[8px] font-bold text-[var(--pm-blue)]">HLS</span>}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-bold truncate">{s.label || `Server ${i + 1}`}</p>
+                                    <p className="text-xs text-[var(--pm-muted)]">{s.size || 'Auto quality'}{s.type ? ` • ${s.type.toUpperCase()}` : ''}</p>
+                                </div>
+                                {mode === 'watch' ? <button onClick={() => onSelect(s)} className="h-11 px-4 rounded-xl bg-[var(--pm-accent)] text-black font-extrabold text-sm shrink-0 hover:scale-[1.02] transition"><i className="fa-solid fa-play mr-1.5"/> Play</button> : <button onClick={(e) => handleDownload(e, s)} disabled={!!downloading} className="h-11 w-12 rounded-xl bg-[var(--pm-accent)] text-black flex items-center justify-center shrink-0 disabled:opacity-60">{isDownloading ? <i className="fa-solid fa-circle-notch fa-spin"/> : <i className="fa-solid fa-download"/>}</button>}
+                            </div>;
+                        })}
+                    </div>
+                    <div className="mt-5 pt-4 border-t border-[var(--pm-border)] flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[var(--pm-muted)]">
+                        <span>PLAY Mate Resource</span><span className="text-[var(--pm-accent)]">Secure • Multi-source</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+const Footer: React.FC = () => {
+    const currentYear = new Date().getFullYear();
+    return (
+        <footer className="bg-[#0a0a15] border-t border-white/10 mt-auto pt-12 pb-8 px-[4%]">
+            <div className="max-w-7xl mx-auto">
+                <div className="flex flex-col items-center text-center gap-6 mb-8">
+                    <div className="text-3xl font-extrabold text-white">SL<span className="text-primary">FLIX</span></div>
+                    <p className="text-gray-400 text-sm max-w-md">Your ultimate destination for streaming movies, series, and more. No ads, just entertainment.</p>
+                </div>
+                <div className="border-t border-white/10 pt-6 flex flex-col items-center gap-4">
+                    <p className="text-gray-500 text-xs">© {currentYear} PLAY Mate. All rights reserved.</p>
+                    <p className="text-gray-400 text-sm">Powered by <span className="text-primary font-bold">PLAY Mate</span></p>
+                </div>
+            </div>
+        </footer>
+    );
+};
+const RankingBadge: React.FC<{ rank: number }> = ({ rank }) => {
+    const getBadgeStyle = () => {
+        if (rank === 1) return { bg: 'bg-yellow-500', text: 'text-black', shadow: 'shadow-yellow-500/50' };
+        else if (rank === 2) return { bg: 'bg-gray-400', text: 'text-black', shadow: 'shadow-gray-400/50' };
+        else if (rank === 3) return { bg: 'bg-amber-700', text: 'text-white', shadow: 'shadow-amber-700/50' };
+        return { bg: 'bg-white/10', text: 'text-white', shadow: '' };
+    };
+    const style = getBadgeStyle();
+    return <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg ${style.bg} ${style.text} flex items-center justify-center font-bold text-sm md:text-lg shadow-lg ${style.shadow}`}>{rank}</div>;
+};
+const ToplistView: React.FC<{ initialCategory?: string; onMovieClick: (m: MovieResult) => void; onBack: () => void; }> = ({ initialCategory = 'trending', onMovieClick, onBack }) => {
+    const [selectedCategory, setSelectedCategory] = useState(initialCategory);
+    const [movies, setMovies] = useState<MovieResult[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [hasMore, setHasMore] = useState(true);
+    const [page, setPage] = useState(1);
+    const [categoryTitle, setCategoryTitle] = useState('');
+    const loadMoreRef = useRef<HTMLDivElement>(null);
+    const loadMovies = useCallback(async (cat: string, pageNum: number, append = false) => {
+        if (pageNum === 1) setLoading(true);
+        try {
+            const data = await ApiService.getRankingList(cat, pageNum);
+            if (append) setMovies(prev => [...prev, ...data.results]);
+            else setMovies(data.results);
+            setCategoryTitle(data.title);
+            setHasMore(data.hasMore);
+            setPage(pageNum);
+        } catch (e) {
+            console.error("Failed to load ranking list:", e);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+    useEffect(() => {
+        setLoading(true);
+        setMovies([]);
+        setPage(1);
+        ApiService.getRankingList(selectedCategory, 1).then(data => {
+            setMovies(data.results);
+            setCategoryTitle(data.title);
+            setHasMore(data.hasMore);
+            setLoading(false);
+        }).catch(() => setLoading(false));
+    }, [selectedCategory]);
+    useEffect(() => {
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && hasMore && !loading) {
+                loadMovies(selectedCategory, page + 1, true);
+            }
+        }, { threshold: 0.1 });
+        if (loadMoreRef.current) observer.observe(loadMoreRef.current);
+        return () => observer.disconnect();
+    }, [hasMore, loading, selectedCategory, page, loadMovies]);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    return (
+        <div className="flex flex-col md:flex-row min-h-[calc(100vh-64px)] pt-4 animate-fade-in">
+            <div className="w-full md:w-64 flex-shrink-0 md:border-r border-white/10 pr-0 md:pr-4 mb-4 md:mb-0">
+                <div className="sticky top-20">
+                    <div className="flex items-center gap-2 mb-4 px-4 md:px-0">
+                        <button onClick={onBack} className="md:hidden text-gray-400 hover:text-white"><i className="fa-solid fa-arrow-left text-xl"></i></button>
+                        <h2 className="text-xl font-bold text-white flex items-center gap-2"><i className="fa-solid fa-chart-line text-primary"></i> Top List</h2>
+                    </div>
+                    <div className="space-y-1 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
+                        {RANKING_CATEGORIES.map((cat) => (
+                            <button key={cat.id} onClick={() => setSelectedCategory(cat.id)} className={`w-full md:w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-all ${selectedCategory === cat.id ? 'bg-primary text-black font-bold' : 'text-gray-300 hover:bg-white/5 hover:text-white'}`}>
+                                <i className={`fa-solid ${cat.icon} ${selectedCategory === cat.id ? '' : 'text-gray-500'}`}></i>
+                                <span className="text-sm truncate">{cat.name}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+            <div className="flex-1 px-4 md:pl-6 pb-24" ref={scrollRef}>
+                <h3 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">{categoryTitle || RANKING_CATEGORIES.find(c => c.id === selectedCategory)?.name}<span className="text-gray-500 text-sm font-normal">({movies.length} items)</span></h3>
+                {loading && page === 1 ? <div className="flex justify-center py-20"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div> : movies.length > 0 ? (
+                    <>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                            {movies.map((movie, index) => (
+                                <div key={index} className="flex items-start gap-3 bg-white/5 hover:bg-white/10 rounded-xl p-2 transition-all cursor-pointer group" onClick={() => onMovieClick(movie)}>
+                                    <RankingBadge rank={index + 1} />
+                                    <div className="flex-1 min-w-0">
+                                        <div className="w-16 h-20 md:w-20 md:h-28 rounded-lg overflow-hidden flex-shrink-0 shadow-lg">
+                                            <LazyLoadImage src={getOptimizedImageUrl(movie.cover, 200)} alt={movie.title} effect="blur" className="w-full h-full object-cover" wrapperClassName="w-full h-full" onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_FAVICON_FALLBACK; }} />
+                                        </div>
+                                        <h4 className="text-white text-xs font-medium mt-2 truncate group-hover:text-primary transition-colors">{movie.title}</h4>
+                                        <p className="text-gray-500 text-[10px]">{movie.releaseDate?.split('-')[0]}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <div ref={loadMoreRef} className="flex justify-center py-8">
+                            {loading && <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>}
+                            {!hasMore && movies.length > 0 && <p className="text-gray-500 text-xs uppercase tracking-wider font-bold">No more content</p>}
+                        </div>
+                    </>
+                ) : <div className="text-center py-20"><div className="text-6xl mb-4 text-gray-600"><i className="fa-solid fa-film"></i></div><p className="text-gray-400 text-lg">No content available</p></div>}
+            </div>
+        </div>
+    );
+};
+const Navbar: React.FC<{ onSearch: (q: string) => void, onHome: () => void, onToplist: () => void, onLiveTv: () => void, onNews: () => void, onWebtoon: () => void, onAdult?: () => void, isSearchOpen: boolean, setIsSearchOpen: (v: boolean) => void, trendingKeywords: string[], currentView: string, theme: 'light' | 'dark', onToggleTheme: () => void }> = ({ onSearch, onHome, onToplist, onLiveTv, onNews, onWebtoon, onAdult, isSearchOpen, setIsSearchOpen, trendingKeywords, currentView, theme, onToggleTheme }) => {
+    const [val, setVal] = useState('');
+    const [suggestions, setSuggestions] = useState<ImdbSuggestion[]>([]);
+    useEffect(() => {
+        const timer = setTimeout(async () => {
+            if (val.trim().length > 2) {
+                const suggs = await ApiService.getImdbSuggestions(val);
+                setSuggestions(suggs);
+            } else { setSuggestions([]); }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [val]);
+    const submit = (q: string) => {
+        const query = q.trim();
+        if (!query) return;
+        onSearch(query);
+        setIsSearchOpen(false);
+        setVal('');
+        setSuggestions([]);
+    };
+    return (
+        <>
+            <nav className="sticky top-0 z-[100] playmate-nav px-[4%] h-16 flex justify-between items-center border-b pt-safe">
+                <div className="flex items-center gap-4">
+                    <button onClick={onHome} className="text-xl font-extrabold playmate-brand flex items-center gap-1 select-none">SL<span className="text-primary">FLIX</span></button>
+                    <button onClick={onToplist} className={`hidden md:flex text-sm font-medium ${currentView === 'toplist' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-chart-line"></i><span>Top List</span></button>
+                    <button onClick={onLiveTv} className={`hidden md:flex text-sm font-medium ${currentView === 'live-tv' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-satellite-dish"></i><span>Live TV</span></button>
+                    <button onClick={onNews} className={`hidden md:flex text-sm font-medium ${currentView === 'news' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-newspaper"></i><span>News</span></button>
+                    <button onClick={onWebtoon} className={`hidden md:flex text-sm font-medium ${currentView === 'webtoon' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-book-open text-primary"></i><span>Toon</span></button>
+                    {onAdult && (
+                        <button onClick={onAdult} className={`px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all ${currentView === 'adult' ? 'bg-gradient-to-r from-fuchsia-600 to-pink-600 text-white shadow-lg shadow-fuchsia-600/40' : 'bg-fuchsia-500/10 text-fuchsia-400 hover:bg-fuchsia-500/20 border border-fuchsia-500/30'}`}>
+                            <i className="fa-solid fa-[#18]"></i>
+                            <span>+18</span>
+                        </button>
+                    )}
+                </div>
+                <div className="flex items-center gap-2">
+                    <PWAInstallButton />
+                    <button onClick={onToggleTheme} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} className="playmate-icon-btn" title={`${theme === 'light' ? 'Dark' : 'Light'} theme`}><i className={`fa-solid ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i></button>
+                    <button onClick={() => setIsSearchOpen(true)} className="playmate-icon-btn" aria-label="Search"><i className="fa-solid fa-search"></i></button>
+                </div>
+            </nav>
+            {isSearchOpen && (
+                <div className="fixed inset-0 z-[110] bg-[#0a0a15]/98 backdrop-blur-xl p-4 pt-safe animate-fade-in flex flex-col">
+                    <div className="flex gap-4 mb-4">
+                        <input autoFocus type="text" className="flex-1 bg-white/10 border-none rounded-full py-3 px-6 text-white outline-none focus:ring-2 focus:ring-primary" placeholder="Search movies, series..." value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => { if(e.key === 'Enter') submit(val); if(e.key === 'Escape') setIsSearchOpen(false); }} />
+                        <button onClick={() => setIsSearchOpen(false)} className="text-white font-bold">Cancel</button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto pb-10">
+                        {val.trim().length === 0 && trendingKeywords.length > 0 && (
+                            <div className="mb-8">
+                                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2"><i className="fa-solid fa-fire text-orange-500"></i> Trending Searches</h3>
+                                <div className="flex flex-wrap gap-2">{trendingKeywords.map((k, i) => (<button key={i} onClick={() => submit(k)} className="bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2 rounded-full text-sm text-gray-300 transition-colors">{k}</button>))}</div>
+                            </div>
+                        )}
+                        {suggestions.length > 0 && (
+                            <div className="space-y-1">
+                                {suggestions.map(s => (
+                                    <div key={s.id} onClick={() => submit(s.l)} className="flex items-center gap-3 p-3 hover:bg-white/10 rounded-lg cursor-pointer transition-colors group">
+                                        <div className="w-10 h-14 bg-white/5 rounded-lg overflow-hidden flex-none">{s.i && <LazyLoadImage src={getOptimizedImageUrl(s.i.imageUrl, 100)} effect="blur" className="w-full h-full object-cover group-hover:scale-110 transition-transform" wrapperClassName="w-full h-full" onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_FAVICON_FALLBACK; }} />}</div>
+                                        <div className="flex-1"><div className="text-white font-bold text-sm leading-tight">{s.l}</div><div className="text-gray-500 text-[10px] mt-1">{s.q || 'Movie'} {s.y ? `• ${s.y}` : ''}</div></div>
+                                        <i className="fa-solid fa-arrow-up-right-from-square text-gray-600 text-xs group-hover:text-primary"></i>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
+const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
+    onFetchSources: (title: string, season: number, episode: number, subjectId?: string, detailPath?: string) => void, 
+    onPlayTrailer: () => void, 
+    onMovieClick: (m: MovieResult) => void, 
+    onDubClick: (dub: MovieDub) => void,
+    onStaffClick: (id: string, name: string, avatar?: string) => void,
+    loading: boolean
+}> = ({ movie, onBack, onFetchSources, onPlayTrailer, onMovieClick, onDubClick, onStaffClick, loading }) => {
+    const [selectedSeason, setSelectedSeason] = useState(1);
+    const [copied, setCopied] = useState(false);
+    const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [watchedProgress, setWatchedProgress] = useState<Record<string, any>>({});
+    const loadProgress = () => {
+        if (movie.subjectId) {
+            const key = `slflix_progress_${movie.subjectId}`;
+            const stored = localStorage.getItem(key);
+            if (stored) {
+                try {
+                    setWatchedProgress(JSON.parse(stored));
+                } catch (e) {}
+            }
+        }
+    };
+    useEffect(() => {
+        loadProgress();
+        window.addEventListener('slflix_progress_update', loadProgress);
+        return () => window.removeEventListener('slflix_progress_update', loadProgress);
+    }, [movie.subjectId]);
+    const showToast = (message: string) => {
+        setToastMessage(message);
+        setTimeout(() => setToastMessage(null), 3000);
+    };
+    const handleCopyLink = () => {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url).then(() => {
+            setCopied(true);
+            showToast('Link copied!');
+            setTimeout(() => setCopied(false), 2000);
+        });
+    };
+    const isSeries = movie.type.includes('Series') || movie.type.includes('TV');
+    const hasSeasons = movie.seasons && movie.seasons.length > 0;
+    const currentSeasonData = movie.seasons?.find(s => s.seasonNumber === selectedSeason);
+    const episodeCount = currentSeasonData?.episodeCount || 0;
+    const showSeasons = hasSeasons;
+    const [recPage, setRecPage] = useState(0);
+    const recsPerPage = 6;
+    const maxRecPages = movie.recommendations ? Math.ceil(movie.recommendations.length / recsPerPage) : 0;
+    const currentRecs = movie.recommendations?.slice(recPage * recsPerPage, (recPage + 1) * recsPerPage) || [];
+    if (!movie || loading || !movie.title || movie.title === "Loading...") {
+        return (
+            <div className="min-h-screen bg-[#0a0a15] animate-fade-in pb-20">
+                <div className="relative h-[40vh] md:h-[60vh]">
+                    <div className="absolute top-4 left-4 z-20">
+                        <button className="bg-black/40 backdrop-blur-md border border-white/10 w-10 h-10 rounded-full text-white flex items-center justify-center">
+                            <BackIcon className="w-5 h-5" />
+                        </button>
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a15] via-[#0a0a15]/40 to-transparent"></div>
+                    <div className="absolute bottom-0 left-0 w-full p-[4%] flex flex-col md:flex-row items-end gap-6">
+                        <div className="hidden md:block w-[200px] h-[280px] rounded-xl bg-white/10 animate-pulse"></div>
+                        <div className="flex-1 space-y-4">
+                            <div className="h-10 md:h-14 w-3/4 bg-white/10 rounded-lg animate-pulse"></div>
+                            <div className="h-6 w-1/2 bg-white/10 rounded animate-pulse"></div>
+                            <div className="h-12 w-40 bg-white/10 rounded-full animate-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+                <div className="px-[4%] mt-8 space-y-6">
+                    <div className="h-48 bg-white/5 rounded-xl border border-white/10 p-6">
+                        <div className="h-6 w-24 bg-white/10 rounded mb-4 animate-pulse"></div>
+                        <div className="space-y-2">
+                            <div className="h-4 w-full bg-white/10 rounded animate-pulse"></div>
+                            <div className="h-4 w-full bg-white/10 rounded animate-pulse"></div>
+                            <div className="h-4 w-3/4 bg-white/10 rounded animate-pulse"></div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                        {[1,2,3,4,5,6,7,8].map(i => (
+                            <div key={i} className="aspect-[2/3] bg-white/5 rounded-xl animate-pulse"></div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    return (
+        <div className="min-h-screen bg-[#0a0a15] animate-fade-in pb-20 relative">
+            {toastMessage && (
+                <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg font-bold animate-fade-in flex items-center gap-2">
+                    <CheckIcon className="w-5 h-5" />
+                    {toastMessage}
+                </div>
+            )}
+            <div className="relative h-[40vh] md:h-[60vh]">
+                <div className="absolute top-4 left-4 z-20"><button onClick={onBack} className="bg-black/40 backdrop-blur-md border border-white/10 w-10 h-10 rounded-full text-white flex items-center justify-center hover:bg-white/20 transition-colors"><BackIcon className="w-5 h-5" /></button></div>
+                <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${getOptimizedImageUrl(movie.cover, 1280)})` }}></div>
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a15] via-[#0a0a15]/40 to-transparent"></div>
+                <div className="absolute bottom-0 left-0 w-full p-[4%] flex flex-col md:flex-row items-end gap-6">
+                    <div className="hidden md:block w-[200px] rounded-xl overflow-hidden shadow-2xl border border-white/10"><LazyLoadImage src={getOptimizedImageUrl(movie.thumbnail || movie.cover, 400)} effect="blur" className="w-full h-full object-cover" wrapperClassName="w-full h-full" onError={(e) => { (e.target as HTMLImageElement).src = DEFAULT_FAVICON_FALLBACK; }} /></div>
+                    <div className="flex-1">
+                        <h1 className="text-3xl md:text-5xl font-extrabold text-white mb-2 drop-shadow-lg">{movie.title}</h1>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-300 mb-4">
+                            {movie.imdbRating && movie.imdbRating !== '0' && <span className="text-primary font-bold flex items-center gap-1"><StarIcon className="w-4 h-4" filled />{movie.imdbRating}</span>}
+                            {movie.releaseDate && <span className="flex items-center gap-1"><CalendarIcon className="w-4 h-4" />{movie.releaseDate.split('-')[0]}</span>}
+                            <span className="bg-white/10 px-2 py-0.5 rounded text-xs border border-white/10 flex items-center gap-1">{isSeries ? <TvIcon className="w-3 h-3" /> : <FilmIcon className="w-3 h-3" />}{movie.type}</span>
+                            {movie.genre && <span className="flex items-center gap-1"><TagIcon className="w-4 h-4" />{movie.genre}</span>}
+                        </div>
+                        <div className="flex gap-4 flex-wrap">
+                            {!isSeries && <button onClick={() => onFetchSources(movie.title, 1, 1, movie.subjectId, movie.detailPath)} disabled={loading || movie.hasResource === false} className={`bg-primary text-black font-bold py-3 px-8 rounded-full hover:bg-white transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(0,229,255,0.3)] group ${movie.hasResource === false ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}>{loading ? <SpinnerIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />} Play</button>}
+                            {movie.trailerUrl && <button onClick={onPlayTrailer} className="bg-white/10 border border-white/20 text-white font-bold py-3 px-6 rounded-full hover:bg-white/20 transition-all flex items-center gap-2"><YoutubeIcon className="w-5 h-5" /> Trailer</button>}
+                            <button onClick={handleCopyLink} className="bg-white/10 border border-white/20 text-white font-bold py-3 px-6 rounded-full hover:bg-white/20 transition-all flex items-center gap-2">
+                                {copied ? <CheckIcon className="w-5 h-5 text-primary" /> : <CopyIcon className="w-5 h-5" />}
+                                {copied ? 'Copied!' : 'Copy Link'}
+                            </button>
+                            <button onClick={() => {
+                                const isSeries = movie.type?.toLowerCase().includes('series') || movie.type?.toLowerCase().includes('tv');
+                                const url = `${window.location.origin}${isSeries ? '/tv/' : '/movie/'}${movie.subjectId || movie.detailPath}`;
+                                if (navigator.share) {
+                                    navigator.share({
+                                        title: movie.title,
+                                        text: `${movie.title} - Watch free HD online`,
+                                        url: url
+                                    }).then(() => {
+                                        showToast('Shared successfully!');
+                                    }).catch((err) => {
+                                        if (err.name !== 'AbortError') {
+                                            showToast('Failed to share');
+                                        }
+                                    });
+                                } else {
+                                    navigator.clipboard.writeText(url);
+                                    setCopied(true);
+                                    showToast('Link copied!');
+                                    setTimeout(() => setCopied(false), 2000);
+                                }
+                            }} className="bg-white/10 border border-white/20 text-white font-bold py-3 px-4 rounded-full hover:bg-white/20 transition-all flex items-center gap-2"><ShareIcon className="w-5 h-5" /> Share</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div className="px-[4%] mt-6 grid grid-cols-1 lg:grid-cols-3 gap-10">
+                <div className="lg:col-span-2 space-y-8">
+                    {movie.dubs && movie.dubs.length > 1 && (
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/10">
+                            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><GlobeIcon className="w-4 h-4" /> Audio/Dub Versions</h3>
+                            <div className="flex flex-wrap gap-2">{movie.dubs.map((dub, i) => (<button key={i} onClick={() => onDubClick(dub)} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all flex items-center gap-1 ${dub.detailPath === movie.detailPath ? 'bg-primary text-black border-primary' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}>{dub.original && <CheckIcon className="w-3 h-3" />}{dub.lanName}</button>))}</div>
+                        </div>
+                    )}
+                    <div className="bg-[#1a1a2e] p-6 rounded-xl border border-white/5">
+                        <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2"><InfoIcon className="w-5 h-5 text-primary" /> Synopsis</h3>
+                        <p className="text-gray-400 leading-relaxed text-sm md:text-base">{movie.description || "No description available."}</p>
+                    </div>
+                    {movie.cast && movie.cast.length > 0 && (
+                        <div className="bg-[#1a1a2e] p-6 rounded-xl border border-white/5">
+                            <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><i className="fa-solid fa-users text-primary"></i> Cast</h3>
+                            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                                {movie.cast.slice(0, 10).map((actor, i) => (
+                                    <button key={i} onClick={() => actor.id ? onStaffClick(actor.id, actor.name, actor.avatar) : undefined} className={`flex-shrink-0 text-center group ${actor.id ? 'cursor-pointer' : 'cursor-default'}`}>
+                                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden border-2 border-white/10 group-hover:border-primary transition-all mx-auto mb-2">
+                                            {actor.avatar ? (
+                                                <LazyLoadImage src={getOptimizedImageUrl(actor.avatar, 150)} alt={actor.name} effect="blur" className="w-full h-full object-cover" wrapperClassName="w-full h-full" onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(actor.name)}&background=1a1a2e&color=fff&size=128`; }} />
+                                            ) : (
+                                                <div className="w-full h-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center">
+                                                    <i className="fa-solid fa-user text-white/50 text-2xl"></i>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <p className="text-white text-xs font-medium truncate max-w-[90px] md:max-w-[100px] group-hover:text-primary transition-colors">{actor.name}</p>
+                                        {actor.character && <p className="text-gray-500 text-[10px] truncate max-w-[90px] md:max-w-[100px]">{actor.character}</p>}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    {isSeries && (
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between"><h3 className="text-xl font-bold text-white flex items-center gap-2"><EpisodeIcon className="w-5 h-5 text-primary" /> Episodes</h3></div>
+                            {showSeasons && <div className="flex gap-2 flex-wrap mb-4">{movie.seasons!.map(season => (<button key={season.seasonNumber} onClick={() => setSelectedSeason(season.seasonNumber)} className={`px-4 py-2 rounded-full text-sm font-bold ${selectedSeason === season.seasonNumber ? 'bg-primary text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}>Season {season.seasonNumber}</button>))}</div>}
+                            {showSeasons && episodeCount > 0 && (
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                                    {Array.from({ length: episodeCount }, (_, i) => i + 1).map(ep => {
+                                        const epKey = `S${selectedSeason}E${ep}`;
+                                        const progressData = watchedProgress[epKey];
+                                        const progress = progressData?.progress || 0;
+                                        const isCompleted = progressData?.completed || false;
+                                        return (
+                                            <button 
+                                                key={ep} 
+                                                onClick={() => onFetchSources(movie.title, selectedSeason, ep, movie.subjectId, movie.detailPath)} 
+                                                disabled={loading} 
+                                                className="bg-[#1a1a2e] hover:bg-white/10 border border-white/10 p-3 rounded-xl relative overflow-hidden group transition-all text-left"
+                                            >
+                                                <span className="text-gray-500 text-xs uppercase mb-1 flex items-center justify-between">
+                                                    <span className="flex items-center gap-1"><EpisodeIcon className="w-3 h-3" /> Episode</span>
+                                                    {isCompleted && <CheckIcon className="w-3 h-3 text-emerald-500" />}
+                                                </span> 
+                                                <span className="text-white text-xl font-bold block mb-2">{ep}</span>
+                                                {progress > 0 && (
+                                                    <div className="absolute bottom-0 left-0 w-full h-1 bg-white/10">
+                                                        <div className={`h-full ${isCompleted ? 'bg-emerald-500' : 'bg-primary'}`} style={{ width: `${progress}%` }}></div>
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                            {!showSeasons && <div className="text-center py-8 text-gray-400 bg-white/5 rounded-xl border border-white/10">
+                                <p className="mb-4">No season information available.</p>
+                                <button onClick={() => onFetchSources(movie.title, 1, 1, movie.subjectId, movie.detailPath)} disabled={loading} className="bg-primary text-black font-bold py-2 px-6 rounded-full hover:bg-white transition-all">
+                                    {loading ? 'Loading...' : 'Play Now'}
+                                </button>
+                            </div>}
+                        </div>
+                    )}
+                </div>
+                <div className="lg:col-span-1">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2"><HeartIcon className="w-5 h-5 text-primary" /> You Might Also Like</h3>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {currentRecs.map((rec, i) => (
+                            <div key={`${recPage}-${i}`} className="animate-fade-in">
+                                <MovieCard movie={rec} onClick={onMovieClick} />
+                            </div>
+                        ))}
+                    </div>
+                    {currentRecs.length === 0 && <p className="text-gray-500 text-sm">No recommendations found.</p>}
+                    {maxRecPages > 1 && (
+                        <div className="mt-4 flex justify-center">
+                            <button 
+                                onClick={() => setRecPage((prev) => (prev + 1) % maxRecPages)}
+                                className="px-6 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-sm font-bold text-white transition-all flex items-center gap-2"
+                            >
+                                See More <i className="fa-solid fa-chevron-right text-[10px]"></i>
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+const TrendingView: React.FC<{ movies: MovieResult[], loading: boolean, hasMore: boolean, onLoadMore: () => void, onMovieClick: (m: MovieResult) => void }> = ({ movies, loading, hasMore, onLoadMore, onMovieClick }) => {
+    const loadMoreRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const observer = new IntersectionObserver((entries) => { if (entries[0].isIntersecting && hasMore && !loading) onLoadMore(); }, { threshold: 0.1 });
+        if (loadMoreRef.current) observer.observe(loadMoreRef.current);
+        return () => observer.disconnect();
+    }, [hasMore, loading, onLoadMore]);
+    return (
+        <div className="pt-8 px-[4%] pb-24">
+            <div className="mb-6"><h2 className="text-2xl font-bold text-white flex items-center gap-2"><i className="fa-solid fa-fire text-orange-500"></i> Trending</h2><p className="text-gray-400 text-sm mt-1">Most popular movies and series right now</p></div>
+            {movies.length > 0 ? (
+                <>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">{movies.map((m, i) => (<div key={i} className="transform transition-all duration-300 hover:scale-105 hover:z-10"><MovieCard movie={m} onClick={onMovieClick} /></div>))}</div>
+                    <div ref={loadMoreRef} className="flex justify-center py-8">{loading && <Loader type="circle" inline />}{!hasMore && movies.length > 0 && <p className="text-gray-500">No more content</p>}</div>
+                </>
+            ) : <div className="col-span-full text-center py-20"><div className="text-6xl mb-4 text-gray-600"><i className="fa-solid fa-fire"></i></div><p className="text-gray-400 text-lg">No trending content available</p></div>}
+        </div>
+    );
+};
+const normalizeTrendingItem = (item: any): MovieResult => {
+    if (!item) return {} as MovieResult;
+    let cover = '';
+    if (typeof item.cover === 'string') cover = item.cover;
+    else if (item.cover?.url) cover = item.cover.url;
+    return { title: item.title || "Unknown", cover, thumbnail: cover, type: item.subjectType === 1 ? 'Movie' : item.subjectType === 2 ? 'TV Series' : 'Movie', subjectId: String(item.subjectId || ''), imdbRating: String(item.imdbRatingValue || '0'), releaseDate: String(item.releaseDate || ''), genre: item.genre || '', description: item.description || item.postTitle || '', countryName: item.countryName || '', detailPath: item.detailPath || '', hasResource: item.hasResource !== undefined ? item.hasResource : true };
+};
+const App: React.FC = () => {
+    const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+        try { return (localStorage.getItem('playmate-theme') as 'light' | 'dark') || 'light'; } catch { return 'light'; }
+    });
+    useEffect(() => {
+        try { localStorage.setItem('playmate-theme', theme); } catch {}
+        document.documentElement.dataset.playmateTheme = theme;
+    }, [theme]);
+    const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
+    const [currentView, setCurrentView] = useState<'home' | 'search' | 'details' | 'trending' | 'toplist' | 'api-docs' | 'live-tv' | 'webtoon' | 'webtoon-reader' | 'sports' | 'news' | 'staff' | 'adult'>('home');
+    const [selectedStaff, setSelectedStaff] = useState<{ id: string, name: string, avatar?: string } | null>(null);
+    const [readerState, setReaderState] = useState<{ isOpen: boolean; url: string; title: string }>({ isOpen: false, url: '', title: '' });
+    const [webtoonUrl, setWebtoonUrl] = useState<string | null>(null);
+    const { data: homeData, loading: homeLoading, error: homeError } = useHomeData();
+    const heroMovies = homeData?.hero || [];
+    const categoriesData = homeData?.categories || [];
+    const [selectedMovie, setSelectedMovie] = useState<MovieResult | null>(null);
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
+    const [trendingKeywords, setTrendingKeywords] = useState<string[]>([]);
+    const [toplistCategory, setToplistCategory] = useState('trending');
+    const [trendingMovies, setTrendingMovies] = useState<MovieResult[]>([]);
+    const loadMoreRef = useRef<HTMLDivElement>(null);
+    const searchLoadMoreRef = useRef<HTMLDivElement>(null);
+    const [trendingLoading, setTrendingLoading] = useState(false);
+    const [trendingHasMore, setTrendingHasMore] = useState(true);
+    const [trendingPage, setTrendingPage] = useState(0);
+    const [searchState, setSearchState] = useState<SearchState>({ query: '', results: [], loading: false, hasMore: false, nextPage: 1, loadingMore: false });
+    const [toast, setToast] = useState<ToastState>({ show: false, message: '', type: 'info' });
+    const [activeLiveChannel, setActiveLiveChannel] = useState<any>(null);
+    const [allLiveChannels, setAllLiveChannels] = useState<any[]>([]);
+    const [playerState, setPlayerState] = useState<{ isOpen: boolean; title: string; poster?: string; sources: VideoSource[]; subtitles?: Subtitle[]; subjectId?: string; detailPath?: string; mediaType?: string; season?: number; episode?: number; initialTime?: number; nextEpisode?: { season: number; episode: number; title: string }; isTrailer?: boolean; isLive?: boolean; startTime?: number; overlay?: boolean; }>({ isOpen: false, title: '', sources: [] });
+    const [sourceModal, setSourceModal] = useState<{ isOpen: boolean; sources: VideoSource[]; subtitles?: Subtitle[]; pendingContext?: { title: string; season: number; episode: number; initialTime: number; subjectId?: string; detailPath?: string; mediaType?: string; }; }>({ isOpen: false, sources: [] });
+    const [loadingDetails, setLoadingDetails] = useState(false);
+    const [loadingSources, setLoadingSources] = useState(false);
+    const categoriesDataRef = useRef(categoriesData);
+    const playerStateRef = useRef(playerState);
+    const hasNavigatedRef = useRef(false);
+
+    useEffect(() => { categoriesDataRef.current = categoriesData; }, [categoriesData]);
+    useEffect(() => { playerStateRef.current = playerState; }, [playerState]);
+
+    const handleBack = () => {
+        if (hasNavigatedRef.current || window.history.length > 2) {
+            window.history.back();
+        } else {
+            setCurrentView('home');
+            window.history.pushState({}, '', '/');
+            resetToHomeSEO();
+        }
+    };
+
+    const loadTrending = async (page: number) => {
+        if (page === 0) setTrendingLoading(true);
+        else setSearchState(prev => ({ ...prev, loadingMore: true }));
+        try {
+            const response = await fetch(`https://h5-api.aoneroom.com/wefeed-h5api-bff/subject/trending?page=${page}&perPage=18`);
+            const data = await response.json();
+            if (data.code === 0 && data.data?.subjectList) {
+                const results = data.data.subjectList.map(normalizeTrendingItem);
+                if (page === 0) setTrendingMovies(results);
+                else setTrendingMovies(prev => [...prev, ...results]);
+                setTrendingHasMore(data.data.pager?.hasMore || false);
+            } else { setTrendingHasMore(false); }
+        } catch (e) { console.error('Error loading trending:', e); setTrendingHasMore(false); }
+        if (page === 0) setTrendingLoading(false);
+        else setSearchState(prev => ({ ...prev, loadingMore: false }));
+        setTrendingPage(page);
+    };
+    const handleSearch = useCallback(async (q: string, page: number = 1) => {
+        hasNavigatedRef.current = true;
+        if (!q.trim()) return;
+        if (page === 1) setSearchState(prev => ({ ...prev, loading: true, query: q }));
+        else setSearchState(prev => ({ ...prev, loadingMore: true }));
+        setCurrentView('search');
+        if (page === 1) window.history.pushState({}, '', `/search?q=${encodeURIComponent(q)}`);
+        const res = await ApiService.search(q, page);
+        if (page === 1) setSearchState({ query: q, results: res.results, loading: false, hasMore: res.hasMore, nextPage: res.nextPage, loadingMore: false });
+        else setSearchState(prev => ({ ...prev, results: [...prev.results, ...res.results], loadingMore: false, hasMore: res.hasMore, nextPage: res.nextPage }));
+    }, []);
+    useEffect(() => {
+        if (currentView !== 'search') return;
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && searchState.hasMore && !searchState.loading && !searchState.loadingMore) {
+                handleSearch(searchState.query, searchState.nextPage);
+            }
+        }, { threshold: 0.1 });
+        if (searchLoadMoreRef.current) observer.observe(searchLoadMoreRef.current);
+        return () => observer.disconnect();
+    }, [currentView, searchState.hasMore, searchState.loading, searchState.loadingMore, searchState.query, searchState.nextPage, handleSearch]);
+    const handleMovieClick = async (m: MovieResult) => {
+        setLoadingDetails(true);
+        hasNavigatedRef.current = true;
+        const prefix = m.type.includes('Series') ? '/tv/' : '/movie/';
+        window.history.pushState({}, '', `${prefix}${m.subjectId || m.detailPath}`);
+        setCurrentView('details');
+        setSelectedMovie(m);
+        window.scrollTo(0,0);
+        updateMetaTags(m, false);
+        try {
+            const fullDetails = await ApiService.getDetails(m);
+            setSelectedMovie(fullDetails);
+            updateMetaTags(fullDetails, false);
+        } catch { setToast({ show: true, message: "Error loading details", type: "error" }); }
+        finally { setLoadingDetails(false); }
+    };
+    const handleStaffClick = (id: string, name: string, avatar?: string) => {
+        hasNavigatedRef.current = true;
+        setSelectedStaff({ id, name, avatar });
+        window.history.pushState({}, '', `/staff/${id}`);
+        setCurrentView('staff');
+        window.scrollTo(0, 0);
+    };
+    const handleToplistClick = (category?: string) => {
+        hasNavigatedRef.current = true;
+        if (category) setToplistCategory(category);
+        setCurrentView('toplist');
+        window.history.pushState({}, '', '/toplist');
+        resetToHomeSEO();
+    };
+    useEffect(() => {
+        const handlePopState = async () => {
+            const path = window.location.pathname;
+            const searchParams = new URLSearchParams(window.location.search);
+            const q = searchParams.get('q');
+            if (playerStateRef.current.isOpen && !path.includes('/watch')) { setPlayerState(p => ({ ...p, isOpen: false })); return; }
+            if (path === '/' || path === '') { setCurrentView('home'); setSelectedMovie(null); resetToHomeSEO(); }
+            else if (path === '/toplist') setCurrentView('toplist');
+            else if (path === '/trending') setCurrentView('trending');
+            else if (path === '/api-docs') setCurrentView('api-docs');
+            else if (path.startsWith('/search') && q) {
+                setSearchState(prev => ({ ...prev, query: q, loading: true }));
+                setCurrentView('search');
+                const res = await ApiService.search(q, 1);
+                setSearchState(prev => ({ ...prev, query: q, results: res.results, loading: false, hasMore: res.hasMore, nextPage: res.nextPage, loadingMore: false }));
+            } else if (path.startsWith('/staff/')) {
+                const id = path.split('/').pop();
+                if (id) {
+                    setSelectedStaff({ id, name: "Staff Member" });
+                    setCurrentView('staff');
+                }
+            } else if (path.startsWith('/movie/') || path.startsWith('/tv/')) {
+                let id = path.split('/').pop();
+                if (id === 'watch' || id === 'undefined' || id === 'null' || !id || id === 'movie' || id === 'tv') {
+                    const parts = path.split('/').filter(Boolean);
+                    id = parts[parts.length - 2] || '';
+                }
+                if (id && id.length > 5) {
+                    let foundInCategories = false;
+                    for (const cat of categoriesDataRef.current) { 
+                        const found = cat.movies?.find(m => m.subjectId === id); 
+                        if (found) { 
+                            setSelectedMovie(found); 
+                            setCurrentView('details'); 
+                            updateMetaTags(found, false);
+                            setLoadingDetails(true); 
+                            try { 
+                                const full = await ApiService.getDetails(found); 
+                                setSelectedMovie(full); 
+                                updateMetaTags(full, false);
+                            } catch {} 
+                            setLoadingDetails(false); 
+                            foundInCategories = true; 
+                            break; 
+                        } 
+                    }
+                    if (!foundInCategories) { 
+                        setLoadingDetails(true); 
+                        setCurrentView('details'); 
+                        const movie = await ApiService.getMovieById(id); 
+                        setSelectedMovie(movie); 
+                        updateMetaTags(movie, false);
+                        const full = await ApiService.getDetails(movie); 
+                        setSelectedMovie(full); 
+                        updateMetaTags(full, false);
+                        setLoadingDetails(false); 
+                    }
+                } else {
+                    setCurrentView('home');
+                    resetToHomeSEO();
+                    window.history.replaceState({}, '', '/');
+                }
+            }
+        };
+        window.addEventListener('popstate', handlePopState);
+        const initCheck = async () => {
+            const path = window.location.pathname;
+            const q = new URLSearchParams(window.location.search).get('q');
+            if (path === '/toplist') handleToplistClick();
+            else if (path === '/trending') handleTrendingClick();
+            else if (path === '/api-docs') setCurrentView('api-docs');
+            else if (path.startsWith('/search') && q) handleSearch(q);
+            else if (path.startsWith('/staff/')) { const id = path.split('/').pop(); if (id) { setSelectedStaff({ id, name: "Staff Member" }); setCurrentView('staff'); } }
+            else if (path.startsWith('/movie/') || path.startsWith('/tv/')) { 
+                const id = path.split('/').pop(); 
+                if (id) { 
+                    setLoadingDetails(true); 
+                    setCurrentView('details'); 
+                    const movie = await ApiService.getMovieById(id); 
+                    setSelectedMovie(movie); 
+                    updateMetaTags(movie, false);
+                    const full = await ApiService.getDetails(movie); 
+                    setSelectedMovie(full); 
+                    updateMetaTags(full, false);
+                    setLoadingDetails(false); 
+                } 
+            }
+        };
+        initCheck();
+        return () => window.removeEventListener('popstate', handlePopState);
+    }, []);
+    useEffect(() => {
+        const init = async () => { 
+            try {
+                const trending = await ApiService.getTrendingSearches(); 
+                setTrendingKeywords(trending); 
+            } catch (e) {
+                console.error('Error loading trending searches:', e);
+            }
+        };
+        init();
+    }, []);
+    const handlePlayTrailer = () => { if (selectedMovie?.trailerUrl) { setPlayerState({ isOpen: true, title: `${selectedMovie.title} - Trailer`, sources: [{ quality: 720, stream: selectedMovie.trailerUrl, label: 'Trailer', type: 'mp4' }], subtitles: [], initialTime: 0, isTrailer: true, overlay: true }); window.history.pushState({}, '', window.location.pathname + '/trailer'); } };
+    const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => { if (toast.timeoutId) clearTimeout(toast.timeoutId); const timeoutId = setTimeout(() => { setToast({ show: false, message: '', type: 'info' }); }, 3000); setToast({ show: true, message, type, timeoutId }); };
+    const handleFetchSources = async (title: string, season = 1, episode = 1, subjectId?: string, detailPath?: string) => {
+        const movie = selectedMovie;
+        if (!movie) return;
+        const activeSubjectId = (subjectId || movie.subjectId || '').trim();
+        const activeDetailPath = (detailPath || movie.detailPath || '').trim();
+        if (!activeSubjectId || activeSubjectId === 'undefined' || activeSubjectId === 'null') { showToast("Missing video ID. Go back and open details again.", "error"); return; }
+        let initialTime = 0;
+        const progressKey = `slflix_progress_${activeSubjectId}`;
+        const storedProgress = localStorage.getItem(progressKey);
+        if (storedProgress) {
+            try {
+                const data = JSON.parse(storedProgress);
+                const epKey = `S${season}E${episode}`;
+                if (data[epKey] && data[epKey].time) {
+                    initialTime = data[epKey].time;
+                }
+            } catch (e) {}
+        }
+        if (movie.type === 'Live Sport' && movie.sourceUrl) { setPlayerState({ isOpen: true, title, sources: [{ quality: 720, stream: movie.sourceUrl, label: 'Live Stream', type: 'hls' }], subtitles: [], subjectId: movie.subjectId, initialTime: 0, isLive: true }); window.history.pushState({}, '', window.location.pathname + '/watch'); return; }
+        setLoadingSources(true);
+        try {
+            const data = await ApiService.getSources(activeSubjectId, movie.type, season, episode, activeDetailPath, movie.title);
+            if (data.videos && data.videos.length > 0) {
+                setSourceModal({ isOpen: true, sources: data.videos, subtitles: data.subs || [], pendingContext: { title: movie.type.includes('Series') ? `${title} - S${season} E${episode}` : title, season, episode, initialTime, subjectId: activeSubjectId, detailPath: activeDetailPath } });
+            } else { showToast("No sources found. Try another movie.", "error"); }
+        } catch (e) { console.error('[App] Source error:', e); showToast("Error loading sources", "error"); }
+        finally { setLoadingSources(false); }
+    };
+    const handleTrendingClick = () => { hasNavigatedRef.current = true; setCurrentView('trending'); window.history.pushState({}, '', '/trending'); resetToHomeSEO(); if (trendingMovies.length === 0) loadTrending(0); };
+    const handleLiveTvClick = () => { hasNavigatedRef.current = true; setCurrentView('live-tv'); window.history.pushState({}, '', '/live-tv'); resetToHomeSEO(); };
+    const handleWebtoonClick = () => { hasNavigatedRef.current = true; setCurrentView('webtoon'); window.history.pushState({}, '', '/webtoon'); resetToHomeSEO(); };
+    const handlePlayLiveChannel = (channel: any, channelList?: any[]) => {
+        if (!channel) return;
+        const rawUrl = channel.stream_url || channel.url || channel.streamUrl;
+        if (!rawUrl) return;
+        const streamUrl = rawUrl;
+        const isMp4 = streamUrl.toLowerCase().includes('.mp4') || (channel.format === 'mp4');
+        const streamType = isMp4 ? 'mp4' : 'hls';
+        setActiveLiveChannel(channel);
+        if (channelList && channelList.length > 0) {
+            setAllLiveChannels(channelList);
+        }
+        setPlayerState({ 
+            isOpen: true, 
+            title: channel.name || channel.title || 'Live Stream', 
+            sources: [{ quality: 720, stream: streamUrl, label: 'Live Stream', type: streamType }], 
+            subtitles: [], 
+            initialTime: 0, 
+            isLive: true,
+            subjectId: channel.id || 'live-channel'
+        });
+        if (!window.location.pathname.includes('/watch')) {
+            window.history.pushState({}, '', window.location.pathname + '/watch');
+        }
+    };
+    const handlePlayHighlight = (highlight: any) => {
+        handlePlayLiveChannel({
+            id: highlight.id,
+            url: highlight.path,
+            title: highlight.title
+        });
+    };
+    const handlePlaySports = (match: any) => {
+        handlePlayLiveChannel({
+            id: match.id,
+            url: match.playPath,
+            title: match.team1.name + ' vs ' + match.team2.name
+        });
+    };
+    const handleReadWebtoon = (url: string, title: string) => {
+        setReaderState({ isOpen: true, url, title });
+        setCurrentView('webtoon-reader');
+        window.history.pushState({}, '', '/webtoon/read');
+    };
+    const handleProgressUpdate = (time: number, duration: number) => {
+        const { subjectId, season, episode, title } = playerStateRef.current;
+        if (!subjectId) return;
+        const activeSeason = season || 1;
+        const activeEpisode = episode || 1;
+        if (duration > 0 && time > 0) {
+            const progress = (time / duration) * 100;
+            const isCompleted = progress > 90;
+            const key = `slflix_progress_${subjectId}`;
+            const stored = localStorage.getItem(key);
+            let data: Record<string, any> = {};
+            try {
+                data = stored ? JSON.parse(stored) : {};
+            } catch (e) {
+                data = {};
+            }
+            const epKey = `S${activeSeason}E${activeEpisode}`;
+            data[epKey] = {
+                progress,
+                completed: isCompleted,
+                time,
+                duration,
+                updatedAt: Date.now()
+            };
+            localStorage.setItem(key, JSON.stringify(data));
+            localStorage.setItem('slflix_last_watched', JSON.stringify({
+                subjectId,
+                season: activeSeason,
+                episode: activeEpisode,
+                time,
+                title: title
+            }));
+            window.dispatchEvent(new Event('slflix_progress_update'));
+        }
+    };
+    return (
+        <div className={`playmate-app ${theme === 'light' ? 'playmate-light' : 'playmate-dark'} min-h-screen font-sans overflow-x-hidden flex flex-col`}>
+            <NetworkStatusNotifier />
+            <Toast {...toast} />
+            {(loadingSources) && <LoadingView />}
+            <SourceSelector 
+                isOpen={sourceModal.isOpen} 
+                sources={sourceModal.sources} 
+                subtitles={sourceModal.subtitles}
+                title={selectedMovie?.title}
+                poster={selectedMovie?.thumbnail || selectedMovie?.cover}
+                mediaType={selectedMovie?.type}
+                season={sourceModal.pendingContext?.season}
+                episode={sourceModal.pendingContext?.episode}
+                onClose={() => setSourceModal({ isOpen: false, sources: [], subtitles: [] })} 
+                onSelect={(s) => {
+                    if (sourceModal.pendingContext) {
+                        const { title, season, episode, initialTime, subjectId } = sourceModal.pendingContext;
+                        let nextEp = undefined;
+                        if (selectedMovie?.type.includes('Series')) { const currentSeason = selectedMovie.seasons?.find(s => s.seasonNumber === season); if (currentSeason && episode < currentSeason.episodeCount) nextEp = { season, episode: episode + 1, title: selectedMovie.title }; }
+                        setPlayerState({ isOpen: true, title, sources: [s, ...sourceModal.sources.filter(x => x !== s)], subtitles: sourceModal.subtitles, subjectId, season, episode, initialTime, nextEpisode: nextEp });
+                        if (!window.location.pathname.includes('/watch')) {
+                            window.history.pushState({}, '', window.location.pathname + '/watch');
+                        } else {
+                            window.history.replaceState({}, '', window.location.pathname);
+                        }
+                    }
+                    setSourceModal({ isOpen: false, sources: [], subtitles: [] });
+                }}
+                onToast={(m) => showToast(m, 'success')} 
+            />
+            {playerState.isOpen && (
+                playerState.isLive ? (
+                    <LiveTvStreamPlayer 
+                        channel={activeLiveChannel || {
+                            id: playerState.subjectId || 'live-channel',
+                            name: playerState.title || 'Live Stream',
+                            stream_url: playerState.sources[0]?.stream || '',
+                            logo: ''
+                        }}
+                        allChannels={allLiveChannels}
+                        onClose={() => {
+                            const currentPath = window.location.pathname;
+                            const newPath = currentPath.replace('/watch', '').replace('/trailer', '');
+                            setPlayerState(p => ({ ...p, isOpen: false })); 
+                            window.history.replaceState({}, '', newPath || '/');
+                        }}
+                        onChannelSelect={(selectedCh) => {
+                            handlePlayLiveChannel(selectedCh, allLiveChannels);
+                        }}
+                    />
+                ) : (
+                    <VideoPlayer 
+                        {...playerState} 
+                        onClose={() => { 
+                            const currentPath = window.location.pathname;
+                            const newPath = currentPath.replace('/watch', '').replace('/trailer', '');
+                            setPlayerState(p => ({ ...p, isOpen: false })); 
+                            window.history.replaceState({}, '', newPath);
+                        }}
+                        onProgressUpdate={handleProgressUpdate}
+                        onPlayNext={() => { if (playerState.nextEpisode) { setPlayerState(p => ({ ...p, isOpen: false })); const currentPath = window.location.pathname.replace('/watch', '').replace('/trailer', ''); window.history.replaceState({}, '', currentPath); setTimeout(() => handleFetchSources(playerState.nextEpisode!.title, playerState.nextEpisode!.season, playerState.nextEpisode!.episode), 300); } }}
+                    />
+                )
+            )}
+            <div className={playerState.isOpen ? 'hidden' : 'block'}>
+                {currentView !== 'live-tv' && currentView !== 'webtoon-reader' && (
+                    <Navbar 
+                        onSearch={handleSearch} 
+                        onHome={() => { setCurrentView('home'); window.history.pushState({}, '', '/'); resetToHomeSEO(); }} 
+                        onToplist={() => handleToplistClick()} 
+                        onLiveTv={handleLiveTvClick}
+                        onNews={() => { hasNavigatedRef.current = true; setCurrentView('news'); window.history.pushState({}, '', '/news'); resetToHomeSEO(); }}
+                        onWebtoon={handleWebtoonClick}
+                        onAdult={() => { hasNavigatedRef.current = true; setCurrentView('adult'); window.history.pushState({}, '', '/adult'); resetToHomeSEO(); }}
+                        isSearchOpen={isSearchOpen} 
+                        setIsSearchOpen={setIsSearchOpen} 
+                        trendingKeywords={trendingKeywords} 
+                        currentView={currentView}
+                        theme={theme}
+                        onToggleTheme={toggleTheme}
+                    />
+                )}
+                <main className="flex-1">
+                    {currentView === 'home' && (
+                        <div className="pb-24">
+                            <HomePage heroMovies={heroMovies} categoriesData={categoriesData} onMovieClick={handleMovieClick} onToplistClick={handleToplistClick} loading={homeLoading} />
+                        </div>
+                    )}
+                    {currentView === 'search' && (
+                        <div className="pt-8 px-[4%] pb-24">
+                            <div className="mb-6"><h2 className="text-2xl font-bold text-white">Search Results</h2><p className="text-gray-400 text-sm mt-1">Found {searchState.results.length} results for "{searchState.query}"</p></div>
+                            {searchState.loading ? <Loader /> : (
+                                <>
+                                    {searchState.results.length > 0 ? (
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                                            {searchState.results.map((m, i) => (
+                                                <div key={i} className="transform transition-all duration-300 hover:scale-105 hover:z-10">
+                                                    <MovieCard movie={m} onClick={handleMovieClick} />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="col-span-full text-center py-20">
+                                            <div className="text-6xl mb-4 text-gray-600"><i className="fa-solid fa-film"></i></div>
+                                            <p className="text-gray-400 text-lg">No results found</p>
+                                        </div>
+                                    )}
+                                    <div ref={searchLoadMoreRef} className="flex justify-center py-8">
+                                        {searchState.loadingMore && <Loader type="circle" inline />}
+                                        {!searchState.hasMore && searchState.results.length > 0 && (
+                                            <p className="text-gray-500 text-xs uppercase tracking-wider font-bold">No more results</p>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+                    {currentView === 'trending' && <TrendingView movies={trendingMovies} loading={trendingLoading} hasMore={trendingHasMore} onLoadMore={() => loadTrending(trendingPage + 1)} onMovieClick={handleMovieClick} />}
+                    {currentView === 'toplist' && <ToplistView initialCategory={toplistCategory} onMovieClick={handleMovieClick} onBack={() => { setCurrentView('home'); window.history.pushState({}, '', '/'); }} />}
+                    {currentView === 'live-tv' && <LiveTv onBack={() => { setCurrentView('home'); window.history.pushState({}, '', '/'); }} onPlay={handlePlayLiveChannel} />}
+                    {currentView === 'news' && <NewsView onPlayMatch={handlePlaySports} onPlayHighlight={handlePlayHighlight} />}
+                    {currentView === 'webtoon' && <WebtoonView onBack={() => { setCurrentView('home'); window.history.pushState({}, '', '/'); }} onRead={handleReadWebtoon} />}
+                    {currentView === 'adult' && <AdultView onBack={() => { setCurrentView('home'); window.history.pushState({}, '', '/'); }} onPlayStream={(title, sources, poster) => {
+                      setPlayerState({
+                        isOpen: true,
+                        title,
+                        poster,
+                        subjectId: 'adult-stream',
+                        sources: sources as any,
+                        subtitles: []
+                      });
+                    }} />}
+                    {currentView === 'webtoon-reader' && <WebtoonReader url={readerState.url} title={readerState.title} onBack={handleBack} />}
+                    {currentView === 'api-docs' && <ApiDocsView />}
+                    {currentView === 'staff' && selectedStaff && <StaffView staffId={selectedStaff.id} staffName={selectedStaff.name} staffAvatar={selectedStaff.avatar} onBack={handleBack} onMovieClick={handleMovieClick} />}
+                    {currentView === 'details' && selectedMovie && <DetailsView movie={selectedMovie} onBack={handleBack} onFetchSources={handleFetchSources} onPlayTrailer={handlePlayTrailer} onMovieClick={handleMovieClick} onDubClick={(d) => handleMovieClick({ title: "...", cover: "", thumbnail: "", type: selectedMovie.type, subjectId: d.subjectId, detailPath: d.detailPath })} onStaffClick={handleStaffClick} loading={loadingDetails} />}
+                </main>
+                <Footer />
+                <div className="fixed bottom-4 left-0 w-full flex justify-center z-50 pointer-events-none px-4">
+                    <div className="pointer-events-auto">
+                        <Dock magnification={60} distance={100} panelHeight={60} className="bg-[#141414]/95 border-white/10 shadow-2xl">
+                            <DockItem onClick={() => { setCurrentView("home"); window.history.pushState({}, "", "/"); resetToHomeSEO(); }}>
+                                <DockLabel>Home</DockLabel>
+                                <DockIcon><i className={`fa-solid fa-house text-xl ${currentView === "home" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
+                            </DockItem>
+                            <DockItem onClick={() => handleLiveTvClick()}>
+                                <DockLabel>Live TV</DockLabel>
+                                <DockIcon><i className={`fa-solid fa-satellite-dish text-xl ${currentView === "live-tv" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
+                            </DockItem>
+                            <DockItem onClick={() => { setCurrentView("news"); window.history.pushState({}, "", "/news"); }}>
+                                <DockLabel>News</DockLabel>
+                                <DockIcon><i className={`fa-solid fa-newspaper text-xl ${currentView === "news" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
+                            </DockItem>
+                            <DockItem onClick={() => handleWebtoonClick()}>
+                                <DockLabel>Toon</DockLabel>
+                                <DockIcon><i className={`fa-solid fa-book-open text-xl ${currentView === "webtoon" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
+                            </DockItem>
+                            <DockItem onClick={() => handleTrendingClick()}>
+                                <DockLabel>Trending</DockLabel>
+                                <DockIcon><i className={`fa-solid fa-fire text-xl ${currentView === "trending" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
+                            </DockItem>
+                            <DockItem onClick={() => { setCurrentView("adult"); window.history.pushState({}, "", "/adult"); }}>
+                                <DockLabel>+18 Hot</DockLabel>
+                                <DockIcon><i className={`fa-solid fa-shield-cat text-xl ${currentView === "adult" ? "text-fuchsia-400 drop-shadow-[0_0_8px_rgba(244,10,240,0.8)]" : "text-fuchsia-500/60"}`}></i></DockIcon>
+                            </DockItem>
+                            <DockItem onClick={() => setIsSearchOpen(true)}>
+                                <DockLabel>Search</DockLabel>
+                                <DockIcon><i className="fa-solid fa-search text-xl text-gray-400"></i></DockIcon>
+                            </DockItem>
+                        </Dock>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+export default App;
