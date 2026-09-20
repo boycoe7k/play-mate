@@ -15,7 +15,6 @@ import { Dock, DockIcon, DockItem, DockLabel } from "./components/Dock";
 import NewsView from './components/NewsView';
 import WebtoonView from './components/WebtoonView';
 import WebtoonReader from './components/WebtoonReader';
-import AdultView from './components/AdultView';
 import ApiDocsView from './components/ApiDocsView';
 import StaffView from './components/StaffView';
 import { useHomeData } from './hooks/useHomeData';
@@ -314,7 +313,7 @@ const ToplistView: React.FC<{ initialCategory?: string; onMovieClick: (m: MovieR
         </div>
     );
 };
-const Navbar: React.FC<{ onSearch: (q: string) => void, onHome: () => void, onToplist: () => void, onLiveTv: () => void, onNews: () => void, onWebtoon: () => void, onAdult?: () => void, isSearchOpen: boolean, setIsSearchOpen: (v: boolean) => void, trendingKeywords: string[], currentView: string, theme: 'light' | 'dark', onToggleTheme: () => void }> = ({ onSearch, onHome, onToplist, onLiveTv, onNews, onWebtoon, onAdult, isSearchOpen, setIsSearchOpen, trendingKeywords, currentView, theme, onToggleTheme }) => {
+const Navbar: React.FC<{ onSearch: (q: string) => void, onHome: () => void, onToplist: () => void, onLiveTv: () => void, onNews: () => void, onWebtoon: () => void, isSearchOpen: boolean, setIsSearchOpen: (v: boolean) => void, trendingKeywords: string[], currentView: string, theme: 'light' | 'dark', onToggleTheme: () => void }> = ({ onSearch, onHome, onToplist, onLiveTv, onNews, onWebtoon, isSearchOpen, setIsSearchOpen, trendingKeywords, currentView, theme, onToggleTheme }) => {
     const [val, setVal] = useState('');
     const [suggestions, setSuggestions] = useState<ImdbSuggestion[]>([]);
     useEffect(() => {
@@ -343,12 +342,6 @@ const Navbar: React.FC<{ onSearch: (q: string) => void, onHome: () => void, onTo
                     <button onClick={onLiveTv} className={`hidden md:flex text-sm font-medium ${currentView === 'live-tv' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-satellite-dish"></i><span>Live TV</span></button>
                     <button onClick={onNews} className={`hidden md:flex text-sm font-medium ${currentView === 'news' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-newspaper"></i><span>News</span></button>
                     <button onClick={onWebtoon} className={`hidden md:flex text-sm font-medium ${currentView === 'webtoon' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-book-open text-primary"></i><span>Toon</span></button>
-                    {onAdult && (
-                        <button onClick={onAdult} className={`px-2.5 py-1 rounded-full text-xs font-black uppercase tracking-wider flex items-center gap-1 transition-all ${currentView === 'adult' ? 'bg-gradient-to-r from-fuchsia-600 to-pink-600 text-white shadow-lg shadow-fuchsia-600/40' : 'bg-fuchsia-500/10 text-fuchsia-400 hover:bg-fuchsia-500/20 border border-fuchsia-500/30'}`}>
-                            <i className="fa-solid fa-[#18]"></i>
-                            <span>+18</span>
-                        </button>
-                    )}
                 </div>
                 <div className="flex items-center gap-2">
                     <button onClick={onToggleTheme} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} className="playmate-icon-btn" title={`${theme === 'light' ? 'Dark' : 'Light'} theme`}><i className={`fa-solid ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i></button>
@@ -664,7 +657,7 @@ const App: React.FC = () => {
         document.documentElement.dataset.playmateTheme = theme;
     }, [theme]);
     const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
-    const [currentView, setCurrentView] = useState<'home' | 'search' | 'details' | 'trending' | 'toplist' | 'api-docs' | 'live-tv' | 'webtoon' | 'webtoon-reader' | 'sports' | 'news' | 'staff' | 'adult'>('home');
+    const [currentView, setCurrentView] = useState<'home' | 'search' | 'details' | 'trending' | 'toplist' | 'api-docs' | 'live-tv' | 'webtoon' | 'webtoon-reader' | 'sports' | 'news' | 'staff'>('home');
     const [selectedStaff, setSelectedStaff] = useState<{ id: string, name: string, avatar?: string } | null>(null);
     const [readerState, setReaderState] = useState<{ isOpen: boolean; url: string; title: string }>({ isOpen: false, url: '', title: '' });
     const [webtoonUrl, setWebtoonUrl] = useState<string | null>(null);
@@ -673,6 +666,11 @@ const App: React.FC = () => {
     const categoriesData = homeData?.categories || [];
     const [selectedMovie, setSelectedMovie] = useState<MovieResult | null>(null);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
+    useEffect(() => {
+        const openSearch = () => setIsSearchOpen(true);
+        window.addEventListener('movielab:open-search', openSearch);
+        return () => window.removeEventListener('movielab:open-search', openSearch);
+    }, []);
     const [trendingKeywords, setTrendingKeywords] = useState<string[]>([]);
     const [toplistCategory, setToplistCategory] = useState('trending');
     const [trendingMovies, setTrendingMovies] = useState<MovieResult[]>([]);
@@ -1061,7 +1059,6 @@ const App: React.FC = () => {
                         onLiveTv={handleLiveTvClick}
                         onNews={() => { hasNavigatedRef.current = true; setCurrentView('news'); window.history.pushState({}, '', '/news'); resetToHomeSEO(); }}
                         onWebtoon={handleWebtoonClick}
-                        onAdult={() => { hasNavigatedRef.current = true; setCurrentView('adult'); window.history.pushState({}, '', '/adult'); resetToHomeSEO(); }}
                         isSearchOpen={isSearchOpen} 
                         setIsSearchOpen={setIsSearchOpen} 
                         trendingKeywords={trendingKeywords} 
@@ -1110,16 +1107,6 @@ const App: React.FC = () => {
                     {currentView === 'live-tv' && <LiveTv onBack={() => { setCurrentView('home'); window.history.pushState({}, '', '/'); }} onPlay={handlePlayLiveChannel} />}
                     {currentView === 'news' && <NewsView onPlayMatch={handlePlaySports} onPlayHighlight={handlePlayHighlight} />}
                     {currentView === 'webtoon' && <WebtoonView onBack={() => { setCurrentView('home'); window.history.pushState({}, '', '/'); }} onRead={handleReadWebtoon} />}
-                    {currentView === 'adult' && <AdultView onBack={() => { setCurrentView('home'); window.history.pushState({}, '', '/'); }} onPlayStream={(title, sources, poster) => {
-                      setPlayerState({
-                        isOpen: true,
-                        title,
-                        poster,
-                        subjectId: 'adult-stream',
-                        sources: sources as any,
-                        subtitles: []
-                      });
-                    }} />}
                     {currentView === 'webtoon-reader' && <WebtoonReader url={readerState.url} title={readerState.title} onBack={handleBack} />}
                     {currentView === 'api-docs' && <ApiDocsView />}
                     {currentView === 'staff' && selectedStaff && <StaffView staffId={selectedStaff.id} staffName={selectedStaff.name} staffAvatar={selectedStaff.avatar} onBack={handleBack} onMovieClick={handleMovieClick} />}
@@ -1148,10 +1135,6 @@ const App: React.FC = () => {
                             <DockItem onClick={() => handleTrendingClick()}>
                                 <DockLabel>Trending</DockLabel>
                                 <DockIcon><i className={`fa-solid fa-fire text-xl ${currentView === "trending" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
-                            </DockItem>
-                            <DockItem onClick={() => { setCurrentView("adult"); window.history.pushState({}, "", "/adult"); }}>
-                                <DockLabel>+18 Hot</DockLabel>
-                                <DockIcon><i className={`fa-solid fa-shield-cat text-xl ${currentView === "adult" ? "text-fuchsia-400 drop-shadow-[0_0_8px_rgba(244,10,240,0.8)]" : "text-fuchsia-500/60"}`}></i></DockIcon>
                             </DockItem>
                             <DockItem onClick={() => setIsSearchOpen(true)}>
                                 <DockLabel>Search</DockLabel>

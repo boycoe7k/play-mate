@@ -580,8 +580,42 @@ router.get('/home', async (req, res) => {
         const data = await fetchExternal(targetUrl);
         const categories = [];
         const hero = [];
-        if (data.data?.list) {
-            data.data.list.forEach(block => {
+        const homeBlocks = Array.isArray(data.data?.list)
+            ? data.data.list
+            : (Array.isArray(data.data?.operatingList) ? data.data.operatingList : []);
+        if (homeBlocks.length) {
+            homeBlocks.forEach(block => {
+                if (block.type === 'BANNER' && block.banner?.items) {
+                    block.banner.items.forEach(item => {
+                        const d = item.subject || item;
+                        const cover = typeof d.cover === 'string' ? d.cover : (d.cover?.url || d.image?.url || d.thumbnail || '');
+                        hero.push({
+                            id: String(d.subjectId || d.id || d.mid || ''),
+                            title: d.title || d.name || d.subjectName || 'Featured film',
+                            cover,
+                            backdrop: d.horizontal_cover?.url || d.backdrop?.url || d.image?.url || cover,
+                            detailPath: d.detailPath || d.path || ''
+                        });
+                    });
+                } else if ((block.type === 'SUBJECTS_MOVIE' || block.type === 'SUBJECT_LIST' || block.type === 'APPOINTMENT_LIST') && block.subjects?.length) {
+                    const items = block.subjects.map(item => {
+                        const d = item.subject || item;
+                        const cover = typeof d.cover === 'string' ? d.cover : (d.cover?.url || d.image?.url || d.thumbnail || '');
+                        return {
+                            id: String(d.subjectId || d.id || d.mid || ''),
+                            title: d.title || d.name || d.subjectName || 'Unknown',
+                            cover,
+                            thumbnail: cover,
+                            rating: d.imdbRatingValue || d.imdbRating || d.rate || d.score || d.rating || '0',
+                            releaseDate: String(d.releaseDate || d.release_date || d.year || d.publish_date || ''),
+                            genre: d.genre || d.genres || '',
+                            type: d.subjectType === 2 ? 'TV Series' : 'Movie',
+                            detailPath: d.detailPath || d.path || ''
+                        };
+                    });
+                    categories.push({ id: block.id || block.title || 'category', name: block.title || 'Featured', items });
+                }
+                /* Legacy home response shape. */
                 if (block.type === 'banner' && block.items) {
                     block.items.forEach(item => {
                         const d = item.subject || item;

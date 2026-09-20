@@ -16,7 +16,17 @@ export const useHomeData = () => {
       try {
         setLoading(true);
         setError(null);
-        const result = await ApiService.getHomeData();
+        let result = await ApiService.getHomeData();
+        const movieCount = (result.categories || []).reduce((total, category) => total + (category.movies?.length || 0), 0);
+        if (movieCount === 0 && (result.hero || []).length === 0) {
+          const fallback = await ApiService.getRankingList('trending', 1, 18);
+          if (fallback.results?.length) {
+            result = {
+              hero: fallback.results.slice(0, 6),
+              categories: [{ title: 'Trending Movies', query: 'trending', movies: fallback.results }]
+            };
+          }
+        }
         if (mountedRef.current) {
           setData(result);
           setLoading(false);
