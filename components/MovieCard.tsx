@@ -14,7 +14,6 @@ const MovieCard: React.FC<MovieCardProps> = ({ movie, onClick, progress }) => {
         if (t.includes('movie')) return 'bg-blue-600/90';
         if (t.includes('tv') || t.includes('series')) return 'bg-purple-600/90';
         if (t.includes('music')) return 'bg-pink-600/90';
-        if (t.includes('adult') || t.includes('18')) return 'bg-red-600/90';
         return 'bg-gray-700/90';
     };
     const rating = movie.imdbRating && movie.imdbRating !== '0' && movie.imdbRating !== 'null' ? movie.imdbRating : null;

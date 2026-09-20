@@ -722,22 +722,6 @@ export const ApiService = {
             return null;
         }
     },
-    getAdultContent: async (query: string = 'Trending', page: number = 1): Promise<any> => {
-        try {
-            const data = await fetchJson(`/api/adult/xnxx?action=search&query=${encodeURIComponent(query)}&page=${page}`);
-            return data;
-        } catch (e) {
-            return { success: false, results: [] };
-        }
-    },
-    getAdultDetail: async (url: string): Promise<any> => {
-        try {
-            const data = await fetchJson(`/api/adult/xnxx?action=detail&url=${encodeURIComponent(url)}`);
-            return data;
-        } catch (e) {
-            return null;
-        }
-    }
 };
 export const RANKING_CATEGORIES = [
     { id: 'trending', name: 'Trending Now', icon: 'fa-fire' },
