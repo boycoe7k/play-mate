@@ -54,8 +54,8 @@ export default async function handler(req, res) {
     res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
     const contentType = upstream.headers.get('content-type');
     if (contentType) res.setHeader('Content-Type', contentType);
-    const contentLength = upstream.headers.get('content-length');
-    if (contentLength) res.setHeader('Content-Length', contentLength);
+    // Do not forward upstream Content-Length: fetch may transparently decompress
+    // the response, which would advertise a shorter length and truncate JSON.
     const contentRange = upstream.headers.get('content-range');
     if (contentRange) res.setHeader('Content-Range', contentRange);
     const acceptRanges = upstream.headers.get('accept-ranges');
