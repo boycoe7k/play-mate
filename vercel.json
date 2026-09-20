@@ -1,0 +1,15 @@
+{
+  "rewrites": [
+    { "source": "/api-metadata/:path*", "destination": "/api/proxy?service=metadata&path=:path*" },
+    { "source": "/api-omegatech/:path*", "destination": "/api/proxy?service=omegatech&path=:path*" },
+    { "source": "/api-player/:path*", "destination": "/api/proxy?service=player&path=:path*" },
+    { "source": "/api-cineverse/:path*", "destination": "/api/proxy?service=cineverse&path=:path*" },
+    { "source": "/api-stream/:path*", "destination": "/api/proxy?service=stream&path=:path*" }
+  ],
+  "headers": [
+    {
+      "source": "/api-metadata/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=30, stale-while-revalidate=120" }]
+    }
+  ]
+}
