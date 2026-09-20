@@ -1,7 +1,7 @@
 import { MovieResult } from '../types';
-const SITE_NAME = 'PLAY Mate';
-const SITE_URL = 'https://devomega.my.id';
-const DEFAULT_IMAGE = '/icons/playmate.png';
+const SITE_NAME = 'Movie Lab';
+const SITE_URL = 'https://movie-lab.zone.id';
+const DEFAULT_IMAGE = '/icons/movielab.png';
 const DEFAULT_DESCRIPTION = 'Watch Movies, TV Series & Anime Online Free in HD. Stream latest films and shows without registration.';
 
 export const updateFavicon = (iconUrl: string) => {
@@ -77,7 +77,7 @@ export const updateMetaTags = (movie: MovieResult | null, isHome: boolean = fals
     setMeta('og:image:type', 'image/png');
     setMeta('og:image:width', '1200');
     setMeta('og:image:height', '630');
-    setMeta('og:image:alt', movieTitle ? `Watch ${movieTitle} online free` : 'PLAY Mate Movies');
+    setMeta('og:image:alt', movieTitle ? `Watch ${movieTitle} online free` : 'Movie Lab Movies');
     setMeta('og:url', url);
     setMeta('og:site_name', SITE_NAME);
     setMeta('og:locale', 'en_US');
@@ -95,9 +95,9 @@ export const updateMetaTags = (movie: MovieResult | null, isHome: boolean = fals
     setMeta('twitter:title', title, true);
     setMeta('twitter:description', description, true);
     setMeta('twitter:image', image, true);
-    setMeta('twitter:image:alt', movieTitle ? `Watch ${movieTitle}` : 'PLAY Mate Movies', true);
-    setMeta('twitter:site', '@slflix', true);
-    setMeta('twitter:creator', '@slflix', true);
+    setMeta('twitter:image:alt', movieTitle ? `Watch ${movieTitle}` : 'Movie Lab Movies', true);
+    setMeta('twitter:site', '@movielab', true);
+    setMeta('twitter:creator', '@movielab', true);
     setMeta('author', SITE_NAME, true);
     setMeta('copyright', `© ${new Date().getFullYear()} ${SITE_NAME}`, true);
     setMeta('language', 'english', true);

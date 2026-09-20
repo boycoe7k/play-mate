@@ -1,5 +1,5 @@
 /**
- * SL-FLIX Service Worker
+ * Movie Lab Service Worker
  * Provides offline caching and faster loading through Workbox strategies
  * 
  * Strategies:
@@ -8,9 +8,9 @@
  * - Stale While Revalidate: Home page data
  */
 
-const CACHE_NAME = 'playmate-v1';
-const API_CACHE_NAME = 'playmate-api-v1';
-const IMAGE_CACHE_NAME = 'playmate-images-v1';
+const CACHE_NAME = 'movielab-v2';
+const API_CACHE_NAME = 'movielab-api-v2';
+const IMAGE_CACHE_NAME = 'movielab-images-v2';
 
 // Cache durations
 const STATIC_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
@@ -252,4 +252,3 @@ self.addEventListener('sync', (event) => {
 });
 
 console.log('[SW] Service worker loaded');
-

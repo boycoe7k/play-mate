@@ -35,7 +35,7 @@ export const PWAInstallButton: React.FC<{ className?: string }> = ({ className }
           <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
             <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#12131a] p-6 shadow-2xl text-white">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-black italic tracking-tight uppercase">Install PLAY Mate on iOS</h3>
+                <h3 className="text-lg font-black italic tracking-tight uppercase">Install Movie Lab on iOS</h3>
                 <button onClick={() => setShowIOSGuide(false)} className="text-gray-400 hover:text-white cursor-pointer">
                   <X size={20} />
                 </button>
@@ -43,7 +43,7 @@ export const PWAInstallButton: React.FC<{ className?: string }> = ({ className }
               <div className="text-xs text-gray-300 leading-relaxed space-y-2">
                 <p>1. Tap the <strong className="text-primary">Share <Share size={12} className="inline ml-1" /></strong> icon in Safari's toolbar.</p>
                 <p>2. Scroll down and tap <strong className="text-primary">Add to Home Screen</strong>.</p>
-                <p>3. Open PLAY Mate anytime directly from your Home Screen with full offline access!</p>
+                <p>3. Open Movie Lab anytime directly from your Home Screen with full offline access!</p>
               </div>
               <button
                 onClick={() => setShowIOSGuide(false)}

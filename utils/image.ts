@@ -1,4 +1,4 @@
-export const DEFAULT_FAVICON_FALLBACK = '/icons/playmate.png';
+export const DEFAULT_FAVICON_FALLBACK = '/icons/movielab.png';
 
 export const getOptimizedImageUrl = (url?: string, width: number = 300) => {
     if (!url || !url.trim() || url === 'undefined' || url === 'null') {

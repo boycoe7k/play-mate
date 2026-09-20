@@ -418,7 +418,7 @@ export const LiveTvStreamPlayer: React.FC<LiveTvStreamPlayerProps> = ({
                 )}
               </div>
               <div className="flex items-center gap-2 text-[10px] text-gray-400 font-mono mt-0.5">
-                <span className="text-primary font-bold">PLAY Mate LIVE</span>
+                <span className="text-primary font-bold">Movie Lab LIVE</span>
                 <span>•</span>
                 <span>{currentChannel.category?.toUpperCase() || 'GENERAL'}</span>
               </div>

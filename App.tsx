@@ -11,7 +11,6 @@ import HomePage from './components/HomePage';
 import LiveTv from './components/LiveTv';
 import LiveTvStreamPlayer from './components/LiveTvStreamPlayer';
 import NetworkStatusNotifier from './components/NetworkStatusNotifier';
-import { Dock, DockIcon, DockItem, DockLabel } from "./components/Dock";
 import NewsView from './components/NewsView';
 import WebtoonView from './components/WebtoonView';
 import WebtoonReader from './components/WebtoonReader';
@@ -1113,36 +1112,22 @@ const App: React.FC = () => {
                     {currentView === 'details' && selectedMovie && <DetailsView movie={selectedMovie} onBack={handleBack} onFetchSources={handleFetchSources} onPlayTrailer={handlePlayTrailer} onMovieClick={handleMovieClick} onDubClick={(d) => handleMovieClick({ title: "...", cover: "", thumbnail: "", type: selectedMovie.type, subjectId: d.subjectId, detailPath: d.detailPath })} onStaffClick={handleStaffClick} loading={loadingDetails} />}
                 </main>
                 <Footer />
-                <div className="fixed bottom-4 left-0 w-full flex justify-center z-50 pointer-events-none px-4">
-                    <div className="pointer-events-auto">
-                        <Dock magnification={60} distance={100} panelHeight={60} className="bg-[#141414]/95 border-white/10 shadow-2xl">
-                            <DockItem onClick={() => { setCurrentView("home"); window.history.pushState({}, "", "/"); resetToHomeSEO(); }}>
-                                <DockLabel>Home</DockLabel>
-                                <DockIcon><i className={`fa-solid fa-house text-xl ${currentView === "home" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
-                            </DockItem>
-                            <DockItem onClick={() => handleLiveTvClick()}>
-                                <DockLabel>Live TV</DockLabel>
-                                <DockIcon><i className={`fa-solid fa-satellite-dish text-xl ${currentView === "live-tv" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
-                            </DockItem>
-                            <DockItem onClick={() => { setCurrentView("news"); window.history.pushState({}, "", "/news"); }}>
-                                <DockLabel>News</DockLabel>
-                                <DockIcon><i className={`fa-solid fa-newspaper text-xl ${currentView === "news" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
-                            </DockItem>
-                            <DockItem onClick={() => handleWebtoonClick()}>
-                                <DockLabel>Toon</DockLabel>
-                                <DockIcon><i className={`fa-solid fa-book-open text-xl ${currentView === "webtoon" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
-                            </DockItem>
-                            <DockItem onClick={() => handleTrendingClick()}>
-                                <DockLabel>Trending</DockLabel>
-                                <DockIcon><i className={`fa-solid fa-fire text-xl ${currentView === "trending" ? "text-primary drop-shadow-[0_0_8px_rgba(0,229,255,0.8)]" : "text-gray-400"}`}></i></DockIcon>
-                            </DockItem>
-                            <DockItem onClick={() => setIsSearchOpen(true)}>
-                                <DockLabel>Search</DockLabel>
-                                <DockIcon><i className="fa-solid fa-search text-xl text-gray-400"></i></DockIcon>
-                            </DockItem>
-                        </Dock>
+                <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-lg rounded-[28px] border border-[var(--pm-border)] bg-[var(--pm-card)]/95 p-2 shadow-[0_18px_55px_rgba(12,71,91,.22)] backdrop-blur-2xl" aria-label="Movie Lab navigation">
+                    <div className="grid grid-cols-5 gap-1">
+                        {[
+                            { label: 'Home', icon: 'fa-house', active: currentView === 'home', action: () => { setCurrentView('home'); window.history.pushState({}, '', '/'); resetToHomeSEO(); } },
+                            { label: 'Discover', icon: 'fa-compass', active: currentView === 'trending', action: handleTrendingClick },
+                            { label: 'Live', icon: 'fa-bolt', active: currentView === 'live-tv', action: handleLiveTvClick },
+                            { label: 'News', icon: 'fa-newspaper', active: currentView === 'news', action: () => { setCurrentView('news'); window.history.pushState({}, '', '/news'); } },
+                            { label: 'Search', icon: 'fa-magnifying-glass', active: isSearchOpen, action: () => setIsSearchOpen(true) },
+                        ].map((item) => (
+                            <button key={item.label} onClick={item.action} className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl text-[10px] font-black transition-all ${item.active ? 'bg-[var(--pm-accent)] text-slate-950 shadow-lg shadow-emerald-300/30' : 'text-[var(--pm-muted)] hover:bg-[var(--pm-soft)] hover:text-[var(--pm-text)]'}`}>
+                                <i className={`fa-solid ${item.icon} text-base`} />
+                                <span>{item.label}</span>
+                            </button>
+                        ))}
                     </div>
-                </div>
+                </nav>
             </div>
         </div>
     );
