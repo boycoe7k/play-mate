@@ -4,7 +4,7 @@ const ApiDocsView: React.FC = () => {
         <div className="min-h-screen bg-[#0a0a15] text-white p-8 pt-24 animate-fade-in">
             <div className="max-w-4xl mx-auto bg-[#1a1a2e] border border-white/10 rounded-2xl p-8 shadow-2xl">
                 <h1 className="text-3xl md:text-4xl font-extrabold mb-6 text-white flex items-center gap-3">
-                    <i className="fa-solid fa-code text-primary"></i> PLAY Mate - Secure RESTful API Documentation
+                    <i className="fa-solid fa-code text-primary"></i> Movie Lab - Secure RESTful API Documentation
                 </h1>
                 <section className="mb-10">
                     <h2 className="text-2xl font-bold mb-4 flex items-center gap-2 text-gray-200">

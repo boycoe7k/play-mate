@@ -20,10 +20,10 @@ const __dirname = path.dirname(__filename);
 // In-memory registry for staff/actors metadata populated from movie details
 const staffMap = new Map();
 
-// Pre-load default SLFLIX logo for OG canvas generation
+// Pre-load default Movie Lab logo for OG canvas generation
 let slflixLogoDataUri = '';
 try {
-    const logoPath = path.resolve(__dirname, 'public/icons/playmate.png');
+    const logoPath = path.resolve(__dirname, 'public/icons/movielab.png');
     if (fs.existsSync(logoPath)) {
         slflixLogoDataUri = `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}`;
     }
@@ -363,7 +363,7 @@ app.get(['/api/og/staff/:staffId', '/api/og/staff/:staffId.png'], async (req, re
         const pngBuffer = await renderOgPng({
             theme: 'staff',
             title: name,
-            description: `Explore the complete filmography, movies, and TV series starring ${name} on SLFLIX. Stream online free in ultra-high definition.`,
+            description: `Explore the complete filmography, movies, and TV series starring ${name} on Movie Lab. Stream online free in ultra-high definition.`,
             posterUrl: avatar,
             role: role,
             rating: '9.2',
@@ -418,7 +418,7 @@ app.get(['/api/og/live/:channelId', '/api/og/live/:channelId.png', '/api/og/live
         const pngBuffer = await renderOgPng({
             theme: 'live',
             title: channelName,
-            description: `Watch ${channelName} live broadcast around the clock with zero buffering, multi-language commentary, and crystal clear 60FPS streaming on SLFLIX.`,
+            description: `Watch ${channelName} live broadcast around the clock with zero buffering, multi-language commentary, and crystal clear 60FPS streaming on Movie Lab.`,
             posterUrl: channelLogo,
             year: country,
             genre: category,
@@ -444,7 +444,7 @@ app.get(['/api/og/anime/:subjectId', '/api/og/anime/:subjectId.png', '/api/og/an
         const pngBuffer = await renderOgPng({
             theme: 'anime',
             title: 'Anime Simulcast HD',
-            description: 'Stream latest anime series, movies, and OVA episodes with English subtitles and dub in 1080p full HD on SLFLIX.',
+            description: 'Stream latest anime series, movies, and OVA episodes with English subtitles and dub in 1080p full HD on Movie Lab.',
             genre: 'Anime, Action, Fantasy'
         }, 'anime_global');
         res.setHeader('Content-Type', 'image/png');
@@ -458,7 +458,7 @@ app.get(['/api/og/home', '/api/og/home.png', '/api/og', '/api/og.png'], async (r
     try {
         const pngBuffer = await renderOgPng({
             theme: 'home',
-            title: 'SLFLIX PRO Cinema Hub',
+            title: 'Movie Lab Cinema Hub',
             description: 'Stream over 10,000+ blockbuster movies, binge-worthy TV series, anime, and live channels with zero ads and no registration.',
             rating: '9.8',
             year: '2026',
@@ -582,7 +582,7 @@ app.get('/manifest.webmanifest', (req, res) => {
     if (fs.existsSync(manifestPath)) {
         res.json(JSON.parse(fs.readFileSync(manifestPath, 'utf8')));
     } else {
-        res.json({ name: 'SLFLIX' });
+        res.json({ name: 'Movie Lab' });
     }
 });
 app.post('/api/event', express.json(), (req, res) => {
@@ -729,14 +729,14 @@ async function getDynamicHtml(req, res) {
                     const movie = data.data.subject;
                     const isTvSeries = isTv || movie.subjectType === 2 || movie.type === 'TV Series';
                     const rawTitle = isTvSeries 
-                        ? `${movie.title} | Stream TV Series Online Free - SLFLIX`
-                        : `${movie.title} | Watch Online Free - SLFLIX`;
+                        ? `${movie.title} | Stream TV Series Online Free - Movie Lab`
+                        : `${movie.title} | Watch Online Free - Movie Lab`;
                     const movieOwnDesc = (movie.description || '').trim();
-                    const rawDescription = movieOwnDesc || `Watch ${movie.title} online free in HD. ${movie.genre || 'Stream now on SLFLIX'}.`;
+                    const rawDescription = movieOwnDesc || `Watch ${movie.title} online free in HD. ${movie.genre || 'Stream now on Movie Lab'}.`;
                     const title = rawTitle.replace(/"/g, '&quot;');
                     const description = rawDescription.replace(/"/g, '&quot;').replace(/[\r\n]+/g, ' ');
                     const image = `${hostUrl}/api/og/${isTvSeries ? 'tv' : 'movie'}/${subjectId}.png`;
-                    const movieCoverUrl = movie.cover?.url || movie.thumbnail || `${hostUrl}/icons/playmate.png`;
+                    const movieCoverUrl = movie.cover?.url || movie.thumbnail || `${hostUrl}/icons/movielab.png`;
 
                     // Cache staff members for future staff page requests
                     if (movie.staffList || movie.staffs || movie.actors) {
@@ -785,10 +785,10 @@ async function getDynamicHtml(req, res) {
             }
 
             const staffName = staffInfo?.name || 'Celebrity Talent';
-            const title = `${staffName} | Filmography & Works - SLFLIX`.replace(/"/g, '&quot;');
-            const description = `Explore all movies, series, and releases starring ${staffName} on SLFLIX. Watch online free in ultra-high definition.`.replace(/"/g, '&quot;');
+            const title = `${staffName} | Filmography & Works - Movie Lab`.replace(/"/g, '&quot;');
+            const description = `Explore all movies, series, and releases starring ${staffName} on Movie Lab. Watch online free in ultra-high definition.`.replace(/"/g, '&quot;');
             const image = `${hostUrl}/api/og/staff/${subjectId}.png?name=${encodeURIComponent(staffName)}`;
-            const iconUrl = staffInfo?.avatar || `${hostUrl}/icons/playmate.png`;
+            const iconUrl = staffInfo?.avatar || `${hostUrl}/icons/movielab.png`;
 
             html = injectSeoTags(html, {
                 title,
@@ -799,33 +799,33 @@ async function getDynamicHtml(req, res) {
                 type: 'profile'
             });
         } else if (isLive) {
-            const title = 'Live TV Online Free | 24/7 Global Channels & Sports - SLFLIX';
-            const description = 'Stream over 1,500+ premium live television channels, sports, and global news free in HD with zero delay on SLFLIX.';
+            const title = 'Live TV Online Free | 24/7 Global Channels & Sports - Movie Lab';
+            const description = 'Stream over 1,500+ premium live television channels, sports, and global news free in HD with zero delay on Movie Lab.';
             const image = `${hostUrl}/api/og/live.png`;
 
             html = injectSeoTags(html, {
                 title,
                 description,
                 image,
-                icon: `${hostUrl}/icons/playmate.png`,
+                icon: `${hostUrl}/icons/movielab.png`,
                 url: fullUrl,
                 type: 'video.other'
             });
         } else if (isAnime) {
-            const title = 'Watch Anime Online Free in HD | Sub & Dub - SLFLIX';
-            const description = 'Stream popular anime series, movies, and simulcasts with English sub and dub in 1080p HD on SLFLIX.';
+            const title = 'Watch Anime Online Free in HD | Sub & Dub - Movie Lab';
+            const description = 'Stream popular anime series, movies, and simulcasts with English sub and dub in 1080p HD on Movie Lab.';
             const image = `${hostUrl}/api/og/anime.png`;
 
             html = injectSeoTags(html, {
                 title,
                 description,
                 image,
-                icon: `${hostUrl}/icons/playmate.png`,
+                icon: `${hostUrl}/icons/movielab.png`,
                 url: fullUrl,
                 type: 'video.tv_show'
             });
         } else if (isHome) {
-            const title = 'SLFLIX | Watch Free Movies, TV Series & Live Streams Online in 4K';
+            const title = 'Movie Lab | Watch Free Movies, TV Series & Live Streams Online in 4K';
             const description = 'Stream over 10,000+ blockbuster movies, binge-worthy TV series, anime, and live channels with zero ads and no registration.';
             const image = `${hostUrl}/api/og/home.png`;
 
@@ -833,7 +833,7 @@ async function getDynamicHtml(req, res) {
                 title,
                 description,
                 image,
-                icon: `${hostUrl}/icons/playmate.png`,
+                icon: `${hostUrl}/icons/movielab.png`,
                 url: fullUrl,
                 type: 'website'
             });
@@ -853,7 +853,7 @@ async function getDynamicHtml(req, res) {
 }
 const PORT = 3000;
 httpServer.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🚀 SLFLIX Server running on http://localhost:${PORT}`);
+    console.log(`\n🚀 Movie Lab Server running on http://localhost:${PORT}`);
     console.log(`📊 Full production app ready!`);
 });
 export default app;

@@ -390,7 +390,7 @@ router.get('/sources/:id', async (req, res) => {
         const episode = req.query.episode || '0';
         const detailPath = req.query.path || '';
         const title = req.query.title || '';
-        const isMovie = req.query.type === 'Movie';
+        const isMovie = String(req.query.type || '').toLowerCase() === 'movie';
 
         let resolvedPath = detailPath;
         if (!resolvedPath && subjectId) {
@@ -437,40 +437,59 @@ router.get('/sources/:id', async (req, res) => {
                 }
             }
         }
-        if (data && (data.success || data.statusCode === 200) && (data.qualities || data.subtitles)) {
+        // Providers have returned both flat and nested payloads over time. Normalize
+        // them here so the client never has to guess which response shape it received.
+        const payloadCandidates = [
+            data,
+            data?.data,
+            data?.data?.raw,
+            data?.result,
+            data?.data?.result
+        ].filter(Boolean);
+        const providerPayload = payloadCandidates.find((candidate) => (
+            Array.isArray(candidate.qualities) || Array.isArray(candidate.sources) || Array.isArray(candidate.videos) || Array.isArray(candidate.subtitles)
+        )) || {};
+        const qualities = Array.isArray(providerPayload.qualities)
+            ? providerPayload.qualities
+            : (Array.isArray(providerPayload.sources) ? providerPayload.sources : (Array.isArray(providerPayload.videos) ? providerPayload.videos : []));
+        const subtitlesPayload = Array.isArray(providerPayload.subtitles) ? providerPayload.subtitles : [];
+
+        if (qualities.length || subtitlesPayload.length) {
             const forceHttps = (url) => {
                 if (!url) return url;
                 if (typeof url !== 'string') return url;
                 return url.replace('http://', 'https://');
             };
-            const rawQualities = Array.isArray(data.qualities) ? data.qualities : [];
-            const videos = rawQualities.map(q => ({
-                quality: q.quality,
-                url: forceHttps(q.streamUrl || q.url || q.stream || q.direct), 
-                download: forceHttps(q.downloadUrl || q.download || q.streamUrl || q.url || q.stream || q.direct),
+            const getUrl = (item) => forceHttps(item?.streamUrl || item?.videoUrl || item?.url || item?.stream || item?.direct);
+            const getDownloadUrl = (item) => forceHttps(item?.downloadUrl || item?.download || getUrl(item));
+            const videos = qualities.map(q => ({
+                quality: q.quality || q.resolution || q.label || 'Auto',
+                url: getUrl(q),
+                download: getDownloadUrl(q),
                 format: q.format || 'MP4',
-                size: q.resolution ? `${q.resolution}p` : q.quality
-            }));
-            if (data.bestQualityUrl) {
+                size: q.resolution ? `${q.resolution}p` : (q.size || q.quality || 'Auto')
+            })).filter((video) => video.url || video.download);
+            const bestQualityUrl = providerPayload.bestQualityUrl || providerPayload.best?.url;
+            if (bestQualityUrl) {
                 videos.unshift({
                     quality: 'Best (Auto)',
-                    url: forceHttps(data.bestQualityUrl),
-                    download: forceHttps(data.bestQualityUrl),
+                    url: forceHttps(bestQualityUrl),
+                    download: forceHttps(bestQualityUrl),
                     format: 'MP4',
                     size: 'Original'
                 });
-            } else if (data.bestQuality) {
-                const bq = data.bestQuality;
+            } else if (providerPayload.bestQuality) {
+                const bq = providerPayload.bestQuality;
                 videos.unshift({
                     quality: 'Best (' + (bq.quality || 'Auto') + ')',
-                    url: forceHttps(bq.streamUrl || bq.url || bq.stream || bq.direct),
-                    download: forceHttps(bq.downloadUrl || bq.download || bq.streamUrl || bq.url || bq.stream || bq.direct),
+                    url: getUrl(bq),
+                    download: getDownloadUrl(bq),
                     format: bq.format || 'MP4',
                     size: bq.resolution ? `${bq.resolution}p` : 'Best'
                 });
             }
 
-            const rawSubs = Array.isArray(data.subtitles) ? data.subtitles : [];
+            const rawSubs = subtitlesPayload;
             const subtitles = rawSubs.map((s, idx) => {
                 const langCode = (s.languageCode || s.lang || 'en').trim();
                 const langName = (s.language || s.name || s.label || langCode).trim();

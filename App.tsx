@@ -11,7 +11,6 @@ import HomePage from './components/HomePage';
 import LiveTv from './components/LiveTv';
 import LiveTvStreamPlayer from './components/LiveTvStreamPlayer';
 import NetworkStatusNotifier from './components/NetworkStatusNotifier';
-import PWAInstallButton from './components/PWAInstallButton';
 import { Dock, DockIcon, DockItem, DockLabel } from "./components/Dock";
 import NewsView from './components/NewsView';
 import WebtoonView from './components/WebtoonView';
@@ -111,18 +110,31 @@ const SourceSelector: React.FC<{
     const handleDownload = (e: React.MouseEvent, source: VideoSource) => {
         e.stopPropagation();
         const link = source.download || source.direct || source.stream;
-        if (!link) return;
+        if (!link || !/^https?:\/\//i.test(link)) {
+            onToast('This source is not downloadable right now.');
+            return;
+        }
         const key = source.label || String(source.quality);
         setDownloading(key);
         onToast('Preparing download link...');
-        const anchor = document.createElement('a');
-        anchor.href = link;
-        anchor.target = '_blank';
-        anchor.rel = 'noopener noreferrer';
-        anchor.setAttribute('download', '');
-        document.body.appendChild(anchor);
-        anchor.click();
-        document.body.removeChild(anchor);
+        try {
+            const url = new URL(link, window.location.href);
+            if (url.origin === window.location.origin) {
+                const anchor = document.createElement('a');
+                anchor.href = url.toString();
+                anchor.setAttribute('download', '');
+                document.body.appendChild(anchor);
+                anchor.click();
+                anchor.remove();
+            } else {
+                // Browsers ignore the download attribute for cross-origin media.
+                // Opening the provider URL is the reliable fallback and avoids a
+                // silent no-op or a blocked navigation from the modal.
+                window.open(url.toString(), '_blank', 'noopener,noreferrer');
+            }
+        } catch {
+            onToast('Unable to open this download source.');
+        }
         setTimeout(() => setDownloading(null), 2200);
     };
     const quality = (s: VideoSource) => String(s.quality || 'AUTO').toUpperCase().replace('P', '') + (String(s.quality || '').match(/p/i) ? 'P' : '');
@@ -137,7 +149,7 @@ const SourceSelector: React.FC<{
                         <div className="w-16 h-16 rounded-full bg-white/95 text-black flex items-center justify-center shadow-2xl"><i className="fa-solid fa-play ml-1 text-xl" /></div>
                     </div>
                     <div className="absolute bottom-4 left-4 right-4">
-                        <h2 className="text-xl sm:text-2xl font-extrabold text-white truncate">{title || 'PLAY Mate'}</h2>
+                        <h2 className="text-xl sm:text-2xl font-extrabold text-white truncate">{title || 'Movie Lab'}</h2>
                         <div className="flex items-center gap-2 mt-1 text-xs text-white/75">
                             <span>{mediaType || 'Movie'}</span>{season ? <><span>•</span><span>Season {String(season).padStart(2,'0')}</span></> : null}{episode ? <><span>•</span><span>Episode {String(episode).padStart(2,'0')}</span></> : null}
                         </div>
@@ -178,7 +190,7 @@ const SourceSelector: React.FC<{
                         })}
                     </div>
                     <div className="mt-5 pt-4 border-t border-[var(--pm-border)] flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-[var(--pm-muted)]">
-                        <span>PLAY Mate Resource</span><span className="text-[var(--pm-accent)]">Secure • Multi-source</span>
+                        <span>Movie Lab Resource</span><span className="text-[var(--pm-accent)]">Secure • Multi-source</span>
                     </div>
                 </div>
             </div>
@@ -191,12 +203,12 @@ const Footer: React.FC = () => {
         <footer className="bg-[#0a0a15] border-t border-white/10 mt-auto pt-12 pb-8 px-[4%]">
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-col items-center text-center gap-6 mb-8">
-                    <div className="text-3xl font-extrabold text-white">SL<span className="text-primary">FLIX</span></div>
-                    <p className="text-gray-400 text-sm max-w-md">Your ultimate destination for streaming movies, series, and more. No ads, just entertainment.</p>
+                    <div className="text-3xl font-extrabold text-white">MOVIE<span className="text-primary">LAB</span></div>
+                    <p className="text-gray-400 text-sm max-w-md">Your home for movies, series, live TV, and age-restricted video. Find something great to watch.</p>
                 </div>
                 <div className="border-t border-white/10 pt-6 flex flex-col items-center gap-4">
-                    <p className="text-gray-500 text-xs">© {currentYear} PLAY Mate. All rights reserved.</p>
-                    <p className="text-gray-400 text-sm">Powered by <span className="text-primary font-bold">PLAY Mate</span></p>
+                    <p className="text-gray-500 text-xs">© {currentYear} Movie Lab. All rights reserved.</p>
+                    <p className="text-gray-400 text-sm">Powered by <span className="text-primary font-bold">Movie Lab</span></p>
                 </div>
             </div>
         </footer>
@@ -326,7 +338,7 @@ const Navbar: React.FC<{ onSearch: (q: string) => void, onHome: () => void, onTo
         <>
             <nav className="sticky top-0 z-[100] playmate-nav px-[4%] h-16 flex justify-between items-center border-b pt-safe">
                 <div className="flex items-center gap-4">
-                    <button onClick={onHome} className="text-xl font-extrabold playmate-brand flex items-center gap-1 select-none">SL<span className="text-primary">FLIX</span></button>
+                    <button onClick={onHome} className="text-xl font-extrabold playmate-brand flex items-center gap-1 select-none" aria-label="Movie Lab home">MOVIE<span className="text-primary">LAB</span></button>
                     <button onClick={onToplist} className={`hidden md:flex text-sm font-medium ${currentView === 'toplist' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-chart-line"></i><span>Top List</span></button>
                     <button onClick={onLiveTv} className={`hidden md:flex text-sm font-medium ${currentView === 'live-tv' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-satellite-dish"></i><span>Live TV</span></button>
                     <button onClick={onNews} className={`hidden md:flex text-sm font-medium ${currentView === 'news' ? 'text-primary' : 'text-gray-300 hover:text-primary'}`}><i className="fa-solid fa-newspaper"></i><span>News</span></button>
@@ -339,7 +351,6 @@ const Navbar: React.FC<{ onSearch: (q: string) => void, onHome: () => void, onTo
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    <PWAInstallButton />
                     <button onClick={onToggleTheme} aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`} className="playmate-icon-btn" title={`${theme === 'light' ? 'Dark' : 'Light'} theme`}><i className={`fa-solid ${theme === 'light' ? 'fa-moon' : 'fa-sun'}`}></i></button>
                     <button onClick={() => setIsSearchOpen(true)} className="playmate-icon-btn" aria-label="Search"><i className="fa-solid fa-search"></i></button>
                 </div>

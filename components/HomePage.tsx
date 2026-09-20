@@ -93,7 +93,7 @@ const Hero: React.FC<{ movies: MovieResult[], onPlay: (m: MovieResult) => void, 
             </div>
           )}
           <p className="text-gray-300 text-sm sm:text-base md:text-lg mb-8 max-w-2xl line-clamp-2 sm:line-clamp-3 md:line-clamp-4 drop-shadow-lg font-medium leading-relaxed">
-            {m.description || "Watch this and more trending content in ultra high definition. Stream anywhere, anytime on PLAY Mate."}
+            {m.description || "Watch this and more trending content in ultra high definition. Stream anywhere, anytime on Movie Lab."}
           </p>
           <div className="flex flex-wrap items-center gap-4">
             <button 

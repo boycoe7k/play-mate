@@ -1,6 +1,6 @@
-# SL FLIX PRO
+# Movie Lab
 
-SL FLIX PRO is a modern, high-performance streaming and media application engineered with React, TypeScript, Express, and Tailwind CSS. Built for modern web and mobile devices, it delivers a smooth cinema experience with Live TV channels, real-time sports updates, webtoon reader, and on-demand streaming.
+Movie Lab is a modern, high-performance streaming and media application engineered with React, TypeScript, Express, and Tailwind CSS. Built for modern web and mobile devices, it delivers a smooth cinema experience with Live TV channels, real-time sports updates, webtoon reader, and on-demand streaming.
 
 ## Features
 

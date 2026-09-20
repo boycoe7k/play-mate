@@ -1421,7 +1421,7 @@ const StreamingPlayer: React.FC<VideoPlayerProps> = ({
             <button 
               onClick={() => {
                 const url = window.location.href;
-                const text = `Check out ${title} on PLAY Mate! Watch free HD online: ${url}`;
+                const text = `Check out ${title} on Movie Lab! Watch free HD online: ${url}`;
                 window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
               }}
               className="w-9 h-9 flex items-center justify-center text-white hover:bg-[#25D366] rounded-full bg-white/10 transition-colors"

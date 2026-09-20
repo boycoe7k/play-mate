@@ -1,13 +1,13 @@
 {
-    "name": "PLAY Mate",
-    "short_name": "PLAY Mate",
+    "name": "Movie Lab",
+    "short_name": "Movie Lab",
     "start_url": "/",
     "display": "standalone",
     "background_color": "#f6fbfd",
     "lang": "en",
     "scope": "/",
-    "id": "slflix",
-    "description": "PLAY Mate - Stream Movies & TV Shows Free",
+    "id": "movie-lab",
+    "description": "Movie Lab - Stream Movies & TV Shows Free",
     "theme_color": "#12cfa5",
     "icons": [
         {

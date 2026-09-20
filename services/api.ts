@@ -426,21 +426,25 @@ export const ApiService = {
             const url = `/api/sources/${subjectId}?type=${type}&season=${season}&episode=${episode}${detailPath ? `&path=${encodeURIComponent(detailPath)}` : ''}${title ? `&title=${encodeURIComponent(title)}` : ''}`;
             console.log('[SLFLIX] Getting sources from backend:', url);
             const data = await fetchJson(url);
-            if (data.results) {
-                const videos: VideoSource[] = data.results.map((v: any) => {
+            const rawResults = Array.isArray(data?.results)
+                ? data.results
+                : (Array.isArray(data?.data?.results) ? data.data.results : (Array.isArray(data?.sources) ? data.sources : []));
+            const subtitleItems = Array.isArray(data?.subtitles) ? data.subtitles : (Array.isArray(data?.data?.subtitles) ? data.data.subtitles : []);
+            if (rawResults.length || subtitleItems.length) {
+                const videos: VideoSource[] = rawResults.map((v: any) => {
                     const qualityStr = String(v.quality || '');
                     const resMatch = qualityStr.match(/(\d+)/);
                     const resolution = resMatch ? parseInt(resMatch[1]) : (typeof v.quality === 'number' ? v.quality : 0);
                     return {
                         quality: resolution,
                         label: qualityStr || 'Standard',
-                        stream: v.url || v.stream || v.direct,
-                        download: v.download,
+                        stream: v.url || v.stream || v.direct || v.streamUrl || v.videoUrl,
+                        download: v.download || v.downloadUrl || v.url || v.stream || v.direct,
                         size: v.size || (resolution ? `${resolution}p` : ''),
                         type: v.format?.toLowerCase() || 'mp4'
                     };
-                });
-                const subs: Subtitle[] = (data.subtitles || []).map((s: any) => ({
+                }).filter((v: VideoSource) => Boolean(v.stream || v.download));
+                const subs: Subtitle[] = subtitleItems.map((s: any) => ({
                     id: s.id || s.languageCode || s.lang,
                     lang: s.languageCode || s.lang || 'en',
                     language: s.language || s.name || s.label || 'English',
