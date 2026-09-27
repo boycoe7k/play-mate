@@ -5,6 +5,7 @@ import { Episode, MovieResult } from '../types';
 interface BulkDownloadModalProps {
   movieId: string;
   movieData?: MovieResult;
+  isMovie?: boolean;
   seasonNumber?: number;
   seasons?: number[];
   isOpen: boolean;
@@ -17,6 +18,7 @@ const QUALITY_OPTIONS = ['360P', '480P', '720P', '1080P'];
 const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
   movieId,
   movieData,
+  isMovie = false,
   seasonNumber,
   seasons = [],
   isOpen,
@@ -34,9 +36,10 @@ const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
   const { movie: fetchedMovie, loading } = useMovieDetails(dummyMovie);
   const movie = movieData?.title ? movieData : fetchedMovie;
   const availableSeasons = useMemo(() => {
+    if (isMovie) return [1];
     const fromMovie = movie?.seasons?.map(season => season.seasonNumber) || [];
     return Array.from(new Set([...seasons, ...fromMovie, seasonNumber].filter((value): value is number => typeof value === 'number'))).sort((a, b) => a - b);
-  }, [movie?.seasons, seasonNumber, seasons]);
+  }, [isMovie, movie?.seasons, seasonNumber, seasons]);
   const [activeSeason, setActiveSeason] = useState(seasonNumber || availableSeasons[0] || 1);
   const languageOptions = useMemo(() => movie?.dubs?.map(dub => dub.lanName).filter(Boolean) || ['English dub'], [movie?.dubs]);
   const [selectedLanguage, setSelectedLanguage] = useState('English dub');
@@ -55,10 +58,12 @@ const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
   }, [availableSeasons, isOpen, languageOptions, seasonNumber]);
 
   const seasonData = movie?.seasons?.find(season => season.seasonNumber === activeSeason);
-  const episodes: Episode[] = seasonData?.episodes || Array.from(
-    { length: seasonData?.episodeCount || (activeSeason === seasonNumber ? 0 : 0) },
-    (_, index) => ({ episodeNumber: index + 1 })
-  );
+  const episodes: Episode[] = isMovie
+    ? [{ episodeNumber: 1, title: 'Movie download' }]
+    : seasonData?.episodes || Array.from(
+      { length: seasonData?.episodeCount || (activeSeason === seasonNumber ? 0 : 0) },
+      (_, index) => ({ episodeNumber: index + 1 })
+    );
   const episodeNumbers = episodes.map((episode, index) => episode.episodeNumber || index + 1);
   const allSelected = episodeNumbers.length > 0 && selectedEpisodes.length === episodeNumbers.length;
 
@@ -164,13 +169,13 @@ const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
                 </select>
                 <i className="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400" />
               </label>
-              <label className="relative">
+              {!isMovie && <label className="relative">
                 <span className="sr-only">Season</span>
                 <select value={activeSeason} onChange={event => setActiveSeason(Number(event.target.value))} disabled={isProcessing} className="appearance-none rounded-lg border border-white/25 bg-[#191b25] px-3 py-2.5 pr-9 text-sm font-semibold text-white outline-none focus:border-primary">
                   {(availableSeasons.length ? availableSeasons : [activeSeason]).map(season => <option key={season} value={season}>Season {String(season).padStart(2, '0')}</option>)}
                 </select>
                 <i className="fa-solid fa-chevron-down pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400" />
-              </label>
+              </label>}
             </div>
             {loading && <p className="mt-2 text-xs text-gray-500">Loading episodes...</p>}
             <div className="my-4 border-t border-white/10" />
@@ -205,7 +210,7 @@ const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
                       {selected && <span className="h-2.5 w-2.5 rounded-full bg-primary" />}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-base font-bold">S{String(activeSeason).padStart(2, '0')} E{String(episodeNumber).padStart(2, '0')}</p>
+                      <p className="text-base font-bold">{isMovie ? 'Movie' : `S${String(activeSeason).padStart(2, '0')} E${String(episodeNumber).padStart(2, '0')}`}</p>
                       <p className="mt-1 text-sm text-gray-400">{episodeData.size || '—'}{episodeData.duration ? ` | ${episodeData.duration}` : ''}</p>
                     </div>
                   </label>

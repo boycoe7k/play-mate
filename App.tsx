@@ -516,7 +516,7 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
                                     setTimeout(() => setCopied(false), 2000);
                                 }
                             }} className="bg-white/10 border border-white/20 text-white font-bold py-3 px-4 rounded-full hover:bg-white/20 transition-all flex items-center gap-2"><ShareIcon className="w-5 h-5" /> Share</button>
-                            {hasSeasons && <button onClick={() => setDownloadOpen(true)} className="bg-primary text-black font-bold py-3 px-5 rounded-full hover:bg-white transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(0,229,255,0.22)]"><i className="fa-solid fa-download" /> Download</button>}
+                            {(hasSeasons || !isSeries) && <button onClick={() => setDownloadOpen(true)} className="bg-primary text-black font-bold py-3 px-5 rounded-full hover:bg-white transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(0,229,255,0.22)]"><i className="fa-solid fa-download" /> Download</button>}
                         </div>
                     </div>
                 </div>
@@ -621,7 +621,7 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
                     )}
                 </div>
             </div>
-            {hasSeasons && <BulkDownloadModal movieId={movie.subjectId || movie.detailPath || ''} movieData={movie} seasonNumber={selectedSeason} seasons={movie.seasons?.map(season => season.seasonNumber)} isOpen={downloadOpen} onClose={() => setDownloadOpen(false)} />}
+            {(hasSeasons || !isSeries) && <BulkDownloadModal movieId={movie.subjectId || movie.detailPath || ''} movieData={movie} isMovie={!isSeries} seasonNumber={selectedSeason} seasons={movie.seasons?.map(season => season.seasonNumber)} isOpen={downloadOpen} onClose={() => setDownloadOpen(false)} />}
         </div>
     );
 };
