@@ -1431,7 +1431,7 @@ const StreamingPlayer: React.FC<VideoPlayerProps> = ({
             </button>
             {isSeries && movie && (
               <>
-                <VideoPlayerBulkModalWrapper movieId={movie.subjectId || movie.detailPath || ''} seasonNumber={currentSeason} />
+                <VideoPlayerBulkModalWrapper movieId={movie.subjectId || movie.detailPath || ''} movieData={movie} seasonNumber={currentSeason} />
                 <button 
                   onClick={() => setShowSettings(true)} 
                   className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/10 rounded-full bg-white/10"

@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import BulkDownloadModal from './BulkDownloadModal';
+import { MovieResult } from '../types';
 interface VideoPlayerBulkModalWrapperProps {
   movieId: string;
+  movieData?: MovieResult;
   seasonNumber?: number;
   className?: string;
 }
 const VideoPlayerBulkModalWrapper: React.FC<VideoPlayerBulkModalWrapperProps> = ({
   movieId,
+  movieData,
   seasonNumber,
   className
 }) => {
@@ -19,7 +22,7 @@ const VideoPlayerBulkModalWrapper: React.FC<VideoPlayerBulkModalWrapperProps> = 
   return (
     <>
       <div className={className}>
-        <button 
+        <button
           onClick={() => setIsOpen(true)}
           className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/10 rounded-full bg-white/10 transition-colors"
           title="Bulk Download"
@@ -31,6 +34,8 @@ const VideoPlayerBulkModalWrapper: React.FC<VideoPlayerBulkModalWrapperProps> = 
       </div>
       <BulkDownloadModal
         movieId={movieId}
+        movieData={movieData}
+        seasons={movieData?.seasons?.map(season => season.seasonNumber)}
         seasonNumber={seasonNumber}
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
@@ -39,4 +44,4 @@ const VideoPlayerBulkModalWrapper: React.FC<VideoPlayerBulkModalWrapperProps> = 
     </>
   );
 };
-export default VideoPlayerBulkModalWrapper;
+export default VideoPlayerBulkModalWrapper;
