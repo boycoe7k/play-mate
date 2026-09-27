@@ -419,7 +419,8 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
         });
     };
     const normalizedType = String(movie.type || '').toLowerCase();
-    const isSeries = normalizedType.includes('series') || normalizedType.includes('tv');
+    const hasEpisodeStructure = Boolean(movie.seasons?.some(season => (season.episodeCount || 0) > 1 || (season.episodes?.length || 0) > 1));
+    const isSeries = normalizedType.includes('series') || normalizedType.includes('tv') || hasEpisodeStructure;
     const hasSeasons = isSeries && Boolean(movie.seasons?.length);
     const currentSeasonData = movie.seasons?.find(s => s.seasonNumber === selectedSeason);
     const episodeCount = currentSeasonData?.episodeCount || 0;

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMovieDetails } from '../hooks/useMovieDetails';
 import { Episode, MovieResult } from '../types';
+import { ApiService } from '../services/api';
 
 interface BulkDownloadModalProps {
   movieId: string;
@@ -100,11 +101,9 @@ const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
 
     for (let index = 0; index < selectedEpisodes.length; index += 1) {
       const episodeNumber = selectedEpisodes[index];
-      const sourceUrl = `/api/sources/${movieId}?season=${activeSeason}&episode=${episodeNumber}`;
       try {
-        const response = await fetch(sourceUrl);
-        const data = await response.json();
-        const results = Array.isArray(data.results) ? data.results : [];
+        const data = await ApiService.getSources(movieId, movie?.type || 'TV Series', activeSeason, episodeNumber, movie?.detailPath, movie?.title);
+        const results = Array.isArray(data.videos) ? data.videos : [];
         const requestedQuality = results.find((source: any) => `${String(source.quality || '').toUpperCase().replace(/\s/g, '').replace(/P$/, '')}P` === selectedQuality);
         const best = requestedQuality || results.reduce((previous: any, current: any) => {
           const previousQuality = parseInt(String(previous?.quality || 0), 10) || 0;
@@ -185,6 +184,15 @@ const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
                   {quality}
                 </button>
               ))}
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <button onClick={toggleSelectAll} disabled={isProcessing || episodeNumbers.length === 0} className="flex items-center gap-2 text-sm font-bold text-gray-200 transition disabled:opacity-40">
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${allSelected ? 'border-primary bg-primary/15' : 'border-gray-400'}`}>{allSelected && <span className="h-2 w-2 rounded-full bg-primary" />}</span>
+                Select All
+              </button>
+              <button onClick={handleDownload} disabled={selectedEpisodes.length === 0 || isProcessing} className="ml-auto rounded-lg bg-gradient-to-r from-cyan-500 to-emerald-400 px-5 py-2 text-sm font-extrabold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40">
+                <i className="fa-solid fa-download mr-2" />Download
+              </button>
             </div>
           </div>
 
