@@ -388,6 +388,7 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
     const [selectedSeason, setSelectedSeason] = useState(1);
     const [copied, setCopied] = useState(false);
     const [toastMessage, setToastMessage] = useState<string | null>(null);
+    const [downloadOpen, setDownloadOpen] = useState(false);
     const [watchedProgress, setWatchedProgress] = useState<Record<string, any>>({});
     const loadProgress = () => {
         if (movie.subjectId) {
@@ -514,6 +515,7 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
                                     setTimeout(() => setCopied(false), 2000);
                                 }
                             }} className="bg-white/10 border border-white/20 text-white font-bold py-3 px-4 rounded-full hover:bg-white/20 transition-all flex items-center gap-2"><ShareIcon className="w-5 h-5" /> Share</button>
+                            {hasSeasons && <button onClick={() => setDownloadOpen(true)} className="bg-primary text-black font-bold py-3 px-5 rounded-full hover:bg-white transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(0,229,255,0.22)]"><i className="fa-solid fa-download" /> Download</button>}
                         </div>
                     </div>
                 </div>
@@ -554,7 +556,7 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
                     )}
                     {isSeries && (
                         <div className="space-y-4">
-                            <div className="flex items-center justify-between"><h3 className="text-xl font-bold text-white flex items-center gap-2"><EpisodeIcon className="w-5 h-5 text-primary" /> Episodes</h3></div>
+                            <div className="flex items-center justify-between"><h3 className="text-xl font-bold text-white flex items-center gap-2"><EpisodeIcon className="w-5 h-5 text-primary" /> Episodes</h3>{showSeasons && <button onClick={() => setDownloadOpen(true)} className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white hover:bg-primary hover:text-black transition"><i className="fa-solid fa-download" /> Download</button>}</div>
                             {showSeasons && <div className="flex gap-2 flex-wrap mb-4">{movie.seasons!.map(season => (<button key={season.seasonNumber} onClick={() => setSelectedSeason(season.seasonNumber)} className={`px-4 py-2 rounded-full text-sm font-bold ${selectedSeason === season.seasonNumber ? 'bg-primary text-black' : 'bg-white/10 text-white hover:bg-white/20'}`}>Season {season.seasonNumber}</button>))}</div>}
                             {showSeasons && episodeCount > 0 && (
                                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
@@ -618,6 +620,7 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
                     )}
                 </div>
             </div>
+            {hasSeasons && <BulkDownloadModal movieId={movie.subjectId || movie.detailPath || ''} seasonNumber={selectedSeason} seasons={movie.seasons?.map(season => season.seasonNumber)} isOpen={downloadOpen} onClose={() => setDownloadOpen(false)} />}
         </div>
     );
 };

@@ -21,13 +21,13 @@ const BulkDownloadButton: React.FC<BulkDownloadButtonProps> = ({
         shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 
         transition-all duration-200 hover:scale-105 active:scale-95
       `}
-      title={`Bulk download season ${seasonNumber || 'all'}`}
+      title={`Download season ${seasonNumber || 'all'}`}
     >
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10l-5.5 5.5m0 0L7.5 20l5-5m-5 5L17 10m0 0V6m0 4h4" />
       </svg>
-      Bulk Download
+      Download
     </button>
   );
 };
-export default BulkDownloadButton;
+export default BulkDownloadButton;

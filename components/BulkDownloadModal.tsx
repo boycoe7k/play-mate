@@ -1,18 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMovieDetails } from '../hooks/useMovieDetails';
 import { Episode, MovieResult } from '../types';
-import JSZip from 'jszip';
-import { saveAs } from 'file-saver';
+
 interface BulkDownloadModalProps {
   movieId: string;
   seasonNumber?: number;
+  seasons?: number[];
   isOpen: boolean;
   onClose: () => void;
-  onDownload: (urls: string[]) => void;
+  onDownload?: (urls: string[]) => void;
 }
+
+const QUALITY_OPTIONS = ['360P', '480P', '720P', '1080P'];
+
 const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
   movieId,
   seasonNumber,
+  seasons = [],
   isOpen,
   onClose,
   onDownload
@@ -26,246 +30,190 @@ const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
     type: 'Series'
   };
   const { movie, loading } = useMovieDetails(dummyMovie);
-  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
-  const [selectAll, setSelectAll] = useState(false);
-  const [downloadType, setDownloadType] = useState<'zip' | 'folder'>('folder'); 
-  const [downloadSubtitles, setDownloadSubtitles] = useState(true);
+  const availableSeasons = useMemo(() => {
+    const fromMovie = movie?.seasons?.map(season => season.seasonNumber) || [];
+    return Array.from(new Set([...seasons, ...fromMovie, seasonNumber].filter((value): value is number => typeof value === 'number'))).sort((a, b) => a - b);
+  }, [movie?.seasons, seasonNumber, seasons]);
+  const [activeSeason, setActiveSeason] = useState(seasonNumber || availableSeasons[0] || 1);
+  const [selectedEpisodes, setSelectedEpisodes] = useState<number[]>([]);
+  const [selectedQuality, setSelectedQuality] = useState('720P');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, status: '' });
-  const episodes = seasonNumber 
-    ? movie?.seasons?.find((s: any) => s.seasonNumber === seasonNumber)?.episodes || 
-      Array.from(
-        { length: movie?.seasons?.find((s: any) => s.seasonNumber === seasonNumber)?.episodeCount || 0 },
-        (_, i) => ({ episodeNumber: i + 1 })
-      )
-    : [];
-  const toggleEpisode = (index: number) => {
-    const url = `/api/sources/${movieId}?season=${seasonNumber}&episode=${index+1}`;
-    setSelectedUrls(prev => 
-      prev.includes(url)
-        ? prev.filter(u => u !== url)
-        : [...prev, url]
-    );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setActiveSeason(seasonNumber || availableSeasons[0] || 1);
+    setSelectedEpisodes([]);
+    setSelectedQuality('720P');
+    setIsProcessing(false);
+  }, [availableSeasons, isOpen, seasonNumber]);
+
+  const seasonData = movie?.seasons?.find(season => season.seasonNumber === activeSeason);
+  const episodes: Episode[] = seasonData?.episodes || Array.from(
+    { length: seasonData?.episodeCount || (activeSeason === seasonNumber ? 0 : 0) },
+    (_, index) => ({ episodeNumber: index + 1 })
+  );
+  const episodeNumbers = episodes.map((episode, index) => episode.episodeNumber || index + 1);
+  const allSelected = episodeNumbers.length > 0 && selectedEpisodes.length === episodeNumbers.length;
+
+  useEffect(() => {
+    setSelectedEpisodes(previous => previous.filter(episode => episodeNumbers.includes(episode)));
+  }, [activeSeason, episodeNumbers.join(',')]);
+
+  const toggleEpisode = (episodeNumber: number) => {
+    setSelectedEpisodes(previous => previous.includes(episodeNumber)
+      ? previous.filter(episode => episode !== episodeNumber)
+      : [...previous, episodeNumber].sort((a, b) => a - b));
   };
+
   const toggleSelectAll = () => {
-    if (selectAll) {
-      setSelectedUrls([]);
-    } else {
-      setSelectedUrls(episodes.map((_: any, i: number) => `/api/sources/${movieId}?season=${seasonNumber}&episode=${i+1}`));
-    }
-    setSelectAll(!selectAll);
+    setSelectedEpisodes(allSelected ? [] : episodeNumbers);
   };
-  const downloadFile = async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      return blob;
-    } catch (e) {
-      console.error(`Failed to download ${url}`, e);
-      return null;
-    }
-  };
+
   const triggerDownload = (url: string, filename: string) => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => document.body.removeChild(a), 100);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    document.body.appendChild(anchor);
+    anchor.click();
+    window.setTimeout(() => anchor.remove(), 100);
   };
+
   const handleDownload = async () => {
-    if (selectedUrls.length === 0) return;
+    if (selectedEpisodes.length === 0 || isProcessing) return;
     setIsProcessing(true);
-    setProgress({ current: 0, total: selectedUrls.length, status: 'Fetching links...' });
-    const downloadLinks: { url: string; filename: string; type: 'video' | 'subtitle' }[] = [];
-    for (let i = 0; i < selectedUrls.length; i++) {
-      const url = selectedUrls[i];
+    setProgress({ current: 0, total: selectedEpisodes.length, status: 'Preparing downloads...' });
+    const openedUrls: string[] = [];
+
+    for (let index = 0; index < selectedEpisodes.length; index += 1) {
+      const episodeNumber = selectedEpisodes[index];
+      const sourceUrl = `/api/sources/${movieId}?season=${activeSeason}&episode=${episodeNumber}`;
       try {
-        const res = await fetch(url).then(r => r.json());
-        const epNum = i + 1;
-        if (res.results && res.results.length > 0) {
-          const best = res.results.reduce((prev: any, current: any) => 
-            (parseInt(prev.quality) > parseInt(current.quality)) ? prev : current
-          );
-          if (best.download || best.url) {
-            downloadLinks.push({ 
-              url: best.download || best.url, 
-              filename: `${movie?.title || 'Video'}_S${seasonNumber}_E${epNum}.mp4`,
-              type: 'video'
-            });
-          }
+        const response = await fetch(sourceUrl);
+        const data = await response.json();
+        const results = Array.isArray(data.results) ? data.results : [];
+        const requestedQuality = results.find((source: any) => String(source.quality || '').toUpperCase().replace(/\s/g, '') === selectedQuality);
+        const best = requestedQuality || results.reduce((previous: any, current: any) => {
+          const previousQuality = parseInt(String(previous?.quality || 0), 10) || 0;
+          const currentQuality = parseInt(String(current?.quality || 0), 10) || 0;
+          return currentQuality > previousQuality ? current : previous;
+        }, null);
+        const downloadUrl = best?.download || best?.direct || best?.url || best?.stream;
+        if (downloadUrl) {
+          const filename = `${movie?.title || 'Video'}_S${String(activeSeason).padStart(2, '0')}_E${String(episodeNumber).padStart(2, '0')}.mp4`;
+          openedUrls.push(downloadUrl);
+          window.setTimeout(() => triggerDownload(downloadUrl, filename), index * 450);
         }
-        if (downloadSubtitles && res.subtitles && res.subtitles.length > 0) {
-          const engSub = res.subtitles.find((s: any) => s.name.toLowerCase().includes('english')) || res.subtitles[0];
-          if (engSub && engSub.url) {
-             downloadLinks.push({ 
-               url: engSub.url, 
-               filename: `${movie?.title || 'Video'}_S${seasonNumber}_E${epNum}.srt`,
-               type: 'subtitle'
-             });
-          }
-        }
-      } catch (e) {
-        console.error("Failed to fetch info for", url);
+      } catch (error) {
+        console.error('Failed to prepare episode download', episodeNumber, error);
       }
-      setProgress(p => ({ ...p, current: i + 1 }));
+      setProgress(previous => ({ ...previous, current: index + 1 }));
     }
-    if (downloadLinks.length === 0) {
-      alert("No downloadable links found.");
+
+    if (openedUrls.length === 0) {
+      setProgress({ current: 0, total: selectedEpisodes.length, status: 'No downloadable source found.' });
       setIsProcessing(false);
       return;
     }
-    if (downloadType === 'zip') {
-      const zip = new JSZip();
-      const folder = zip.folder(`${movie?.title || 'Downloads'}_S${seasonNumber}`);
-      setProgress({ current: 0, total: downloadLinks.length, status: 'Creating ZIP (Downloading files)...' });
-      for (let i = 0; i < downloadLinks.length; i++) {
-        const link = downloadLinks[i];
-        setProgress(p => ({ ...p, current: i + 1, status: `Downloading ${link.filename}...` }));
-        const blob = await downloadFile(link.url, link.filename);
-        if (blob) {
-          folder?.file(link.filename, blob);
-        } else {
-          triggerDownload(link.url, link.filename);
-        }
-      }
-      setProgress({ current: 100, total: 100, status: 'Finalizing ZIP...' });
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `${movie?.title || 'PLAY-Mate'}_S${seasonNumber}.zip`);
-    } else {
-      setProgress({ current: 0, total: downloadLinks.length, status: 'Triggering downloads...' });
-      downloadLinks.forEach((link, i) => {
-        setTimeout(() => {
-          triggerDownload(link.url, link.filename);
-          setProgress(p => ({ ...p, current: i + 1 }));
-        }, i * 500); 
-      });
-    }
-    setIsProcessing(false);
-    onClose();
+
+    setProgress({ current: selectedEpisodes.length, total: selectedEpisodes.length, status: `${openedUrls.length} download${openedUrls.length === 1 ? '' : 's'} started` });
+    window.setTimeout(() => {
+      setIsProcessing(false);
+      onClose();
+    }, Math.max(900, selectedEpisodes.length * 450));
   };
+
   if (!isOpen || !movieId) return null;
+
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
-        {}
-        <div className="sticky top-0 bg-slate-900/50 backdrop-blur border-b border-slate-700 p-6 rounded-t-2xl">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-lg">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10l-5.5 5.5m0 0L7.5 20l5-5m-5 5L17 10m0 0V6m0 4h4" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-white bg-gradient-to-r from-white to-slate-200 bg-clip-text text-transparent">
-                Bulk Download
-              </h2>
-              <p className="text-slate-400 text-sm">
-                {isProcessing ? progress.status : `${selectedUrls.length} of ${episodes.length} episodes selected`}
-              </p>
-            </div>
-            <button onClick={onClose} disabled={isProcessing} className="ml-auto p-1 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-30">
-              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+    <div className="fixed inset-0 z-[2600] bg-black/75 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" role="dialog" aria-modal="true" aria-label="Download">
+      <div className="w-full sm:max-w-lg max-h-[92vh] overflow-hidden rounded-t-[28px] sm:rounded-[28px] bg-[#11131f] text-white border border-white/10 shadow-2xl flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <div>
+            <h2 className="text-xl font-extrabold">Download</h2>
+            <p className="mt-1 text-xs text-gray-400 truncate max-w-[260px]">{movie?.title || 'Resources'}</p>
           </div>
-          {isProcessing && (
-            <div className="mt-4 h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
-              <div 
-                className="h-full bg-emerald-500 transition-all duration-300"
-                style={{ width: `${(progress.current / progress.total) * 100}%` }}
-              />
-            </div>
-          )}
+          <button onClick={onClose} disabled={isProcessing} className="w-10 h-10 rounded-full bg-white/5 text-gray-300 hover:bg-white/10 transition disabled:opacity-40" aria-label="Close download dialog">
+            <i className="fa-solid fa-xmark" />
+          </button>
         </div>
-        {}
-        <div className="p-6 border-b border-slate-700">
-          <div className="flex flex-col gap-4">
-            <div className="flex gap-4">
-              <label className={`flex items-center gap-2 p-3 rounded-lg bg-slate-800/50 cursor-pointer hover:bg-slate-700/50 transition-all ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}>
-                <input
-                  type="radio"
-                  name="downloadType"
-                  value="zip"
-                  checked={downloadType === 'zip'}
-                  onChange={() => setDownloadType('zip')}
-                  className="w-4 h-4 text-emerald-500 bg-slate-700 border-slate-600 focus:ring-emerald-500"
-                />
-                <span className="text-white font-medium">ZIP Archive</span>
-              </label>
-              <label className={`flex items-center gap-2 p-3 rounded-lg bg-slate-800/50 cursor-pointer hover:bg-slate-700/50 transition-all ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}>
-                <input
-                  type="radio"
-                  name="downloadType"
-                  value="folder"
-                  checked={downloadType === 'folder'}
-                  onChange={() => setDownloadType('folder')}
-                  className="w-4 h-4 text-emerald-500 bg-slate-700 border-slate-600 focus:ring-emerald-500"
-                />
-                <span className="text-white font-medium">Individual (Folder)</span>
-              </label>
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-5 pt-4">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-gray-500">Resource</p>
+            <p className="mt-1 text-sm text-gray-300">Uploaded by Movie Lab resources</p>
+            <div className="mt-4 flex items-center gap-2">
+              <span className="rounded-full bg-primary/15 px-3 py-1.5 text-xs font-bold text-primary">English dub</span>
+              {loading && <span className="text-xs text-gray-500">Loading episodes...</span>}
             </div>
-            <label className={`flex items-center gap-2 p-3 rounded-lg bg-slate-800/50 cursor-pointer hover:bg-slate-700/50 transition-all w-fit ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}>
-              <input
-                type="checkbox"
-                checked={downloadSubtitles}
-                onChange={(e) => setDownloadSubtitles(e.target.checked)}
-                className="w-4 h-4 text-emerald-500 bg-slate-700 border-slate-600 rounded focus:ring-emerald-500 focus:ring-2"
-              />
-              <span className="text-white font-medium">Download Subtitles</span>
-            </label>
           </div>
-        </div>
-        {}
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={toggleSelectAll}
-                disabled={isProcessing}
-                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white text-sm rounded-lg font-medium transition-all disabled:opacity-50"
-              >
-                {selectAll ? 'Deselect All' : 'Select All'}
+
+          <div className="px-5 pt-5">
+            <p className="mb-2 text-xs font-bold text-gray-400">Season</p>
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {(availableSeasons.length ? availableSeasons : [activeSeason]).map(season => (
+                <button key={season} onClick={() => setActiveSeason(season)} disabled={isProcessing} className={`shrink-0 rounded-full px-4 py-2 text-sm font-bold transition ${activeSeason === season ? 'bg-primary text-black' : 'bg-white/8 text-gray-300 hover:bg-white/15'}`}>
+                  Season {String(season).padStart(2, '0')}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="px-5 pt-5">
+            <p className="mb-2 text-xs font-bold text-gray-400">Quality</p>
+            <div className="grid grid-cols-4 gap-2">
+              {QUALITY_OPTIONS.map(quality => (
+                <button key={quality} onClick={() => setSelectedQuality(quality)} disabled={isProcessing} className={`rounded-xl border py-2.5 text-sm font-bold transition ${selectedQuality === quality ? 'border-primary bg-primary text-black' : 'border-white/10 bg-white/5 text-gray-300 hover:border-white/25'}`}>
+                  {quality}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="px-5 pt-5 pb-6">
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold">Episodes</p>
+                <p className="text-xs text-gray-500">{selectedEpisodes.length} of {episodeNumbers.length} selected</p>
+              </div>
+              <button onClick={toggleSelectAll} disabled={isProcessing || episodeNumbers.length === 0} className="text-xs font-bold text-primary hover:text-white transition disabled:opacity-40">
+                {allSelected ? 'Deselect All' : 'Select All'}
               </button>
-              <span className="text-slate-400 text-sm">{episodes.length} episodes</span>
             </div>
-            <button
-              onClick={handleDownload}
-              disabled={selectedUrls.length === 0 || isProcessing}
-              className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isProcessing ? 'Processing...' : `Download ${selectedUrls.length > 0 ? `(${selectedUrls.length})` : ''}`}
-            </button>
-          </div>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {episodes.map((ep: any, index: number) => {
-              const url = `/api/sources/${movieId}?season=${seasonNumber}&episode=${index+1}`;
-              return (
-                <label key={index} className={`flex items-center justify-between p-3 rounded-xl bg-slate-800/50 hover:bg-slate-700/50 transition-all cursor-pointer group border border-transparent hover:border-slate-600 ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedUrls.includes(url)}
-                      onChange={() => toggleEpisode(index)}
-                      className="w-4 h-4 text-emerald-500 bg-slate-700 border-slate-600 rounded focus:ring-emerald-500 focus:ring-2"
-                    />
-                    <div>
-                      <div className="font-medium text-white">{ep.title || `Episode ${index+1}`}</div>
-                      <div className="text-xs text-slate-400">Ready for download</div>
+            <div className="space-y-2">
+              {episodes.map((episode, index) => {
+                const episodeNumber = episode.episodeNumber || index + 1;
+                const selected = selectedEpisodes.includes(episodeNumber);
+                return (
+                  <label key={episodeNumber} className={`flex items-center gap-3 rounded-2xl border p-3 transition cursor-pointer ${selected ? 'border-primary/60 bg-primary/10' : 'border-white/8 bg-white/[0.04] hover:bg-white/[0.08]'} ${isProcessing ? 'pointer-events-none opacity-60' : ''}`}>
+                    <input type="checkbox" checked={selected} onChange={() => toggleEpisode(episodeNumber)} className="h-4 w-4 accent-[var(--pm-accent)]" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold">S{String(activeSeason).padStart(2, '0')} E{String(episodeNumber).padStart(2, '0')}</p>
+                      <p className="mt-0.5 truncate text-xs text-gray-500">{episode.title || 'Ready for download'}</p>
                     </div>
-                  </div>
-                  <div className="text-xs text-slate-400 opacity-0 group-hover:opacity-100">
-                    S{seasonNumber} E{index+1}
-                  </div>
-                </label>
-              );
-            })}
+                    <i className={`fa-solid fa-download text-xs ${selected ? 'text-primary' : 'text-gray-600'}`} />
+                  </label>
+                );
+              })}
+              {!loading && episodes.length === 0 && <p className="rounded-2xl bg-white/5 py-8 text-center text-sm text-gray-500">No episodes available for this season.</p>}
+            </div>
           </div>
         </div>
+
+        <div className="flex items-center gap-3 border-t border-white/10 bg-[#11131f]/95 px-5 py-4 backdrop-blur">
+          <button onClick={toggleSelectAll} disabled={isProcessing || episodeNumbers.length === 0} className="flex-1 rounded-xl border border-white/10 bg-white/5 py-3 text-sm font-bold text-gray-200 hover:bg-white/10 transition disabled:opacity-40">
+            {allSelected ? 'Deselect All' : 'Select All'}
+          </button>
+          <button onClick={handleDownload} disabled={selectedEpisodes.length === 0 || isProcessing} className="flex-[1.35] rounded-xl bg-primary py-3 text-sm font-extrabold text-black shadow-[0_0_20px_rgba(0,229,255,0.2)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-40">
+            {isProcessing ? `${progress.current}/${progress.total}` : `Download${selectedEpisodes.length ? ` (${selectedEpisodes.length})` : ''}`}
+          </button>
+        </div>
+        {isProcessing && <div className="h-1 bg-white/10"><div className="h-full bg-primary transition-all" style={{ width: `${progress.total ? (progress.current / progress.total) * 100 : 0}%` }} /></div>}
       </div>
     </div>
   );
 };
+
 export default BulkDownloadModal;
