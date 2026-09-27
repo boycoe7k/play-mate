@@ -4,6 +4,7 @@ import { Episode, MovieResult } from '../types';
 
 interface BulkDownloadModalProps {
   movieId: string;
+  movieData?: MovieResult;
   seasonNumber?: number;
   seasons?: number[];
   isOpen: boolean;
@@ -15,6 +16,7 @@ const QUALITY_OPTIONS = ['360P', '480P', '720P', '1080P'];
 
 const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
   movieId,
+  movieData,
   seasonNumber,
   seasons = [],
   isOpen,
@@ -29,7 +31,8 @@ const BulkDownloadModal: React.FC<BulkDownloadModalProps> = ({
     thumbnail: '',
     type: 'Series'
   };
-  const { movie, loading } = useMovieDetails(dummyMovie);
+  const { movie: fetchedMovie, loading } = useMovieDetails(dummyMovie);
+  const movie = movieData?.title ? movieData : fetchedMovie;
   const availableSeasons = useMemo(() => {
     const fromMovie = movie?.seasons?.map(season => season.seasonNumber) || [];
     return Array.from(new Set([...seasons, ...fromMovie, seasonNumber].filter((value): value is number => typeof value === 'number'))).sort((a, b) => a - b);

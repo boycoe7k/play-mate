@@ -418,7 +418,8 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
             setTimeout(() => setCopied(false), 2000);
         });
     };
-    const isSeries = movie.type.includes('Series') || movie.type.includes('TV');
+    const normalizedType = String(movie.type || '').toLowerCase();
+    const isSeries = normalizedType.includes('series') || normalizedType.includes('tv') || Boolean(movie.seasons?.length);
     const hasSeasons = movie.seasons && movie.seasons.length > 0;
     const currentSeasonData = movie.seasons?.find(s => s.seasonNumber === selectedSeason);
     const episodeCount = currentSeasonData?.episodeCount || 0;
@@ -522,7 +523,7 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
             </div>
             <div className="px-[4%] mt-6 grid grid-cols-1 lg:grid-cols-3 gap-10">
                 <div className="lg:col-span-2 space-y-8">
-                    {movie.dubs && movie.dubs.length > 1 && (
+                    {isSeries && movie.dubs && movie.dubs.length > 1 && (
                         <div className="bg-white/5 p-4 rounded-xl border border-white/10">
                             <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><GlobeIcon className="w-4 h-4" /> Audio/Dub Versions</h3>
                             <div className="flex flex-wrap gap-2">{movie.dubs.map((dub, i) => (<button key={i} onClick={() => onDubClick(dub)} className={`px-4 py-2 rounded-full text-xs font-bold border transition-all flex items-center gap-1 ${dub.detailPath === movie.detailPath ? 'bg-primary text-black border-primary' : 'bg-white/5 text-white border-white/10 hover:bg-white/10'}`}>{dub.original && <CheckIcon className="w-3 h-3" />}{dub.lanName}</button>))}</div>
@@ -598,7 +599,7 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
                 </div>
                 <div className="lg:col-span-1">
                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-bold text-white flex items-center gap-2"><HeartIcon className="w-5 h-5 text-primary" /> You Might Also Like</h3>
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2"><HeartIcon className="w-5 h-5 text-primary" /> {isSeries ? 'You Might Also Like' : 'For You'}</h3>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                         {currentRecs.map((rec, i) => (
@@ -620,7 +621,7 @@ const DetailsView: React.FC<{ movie: MovieResult, onBack: () => void,
                     )}
                 </div>
             </div>
-            {hasSeasons && <BulkDownloadModal movieId={movie.subjectId || movie.detailPath || ''} seasonNumber={selectedSeason} seasons={movie.seasons?.map(season => season.seasonNumber)} isOpen={downloadOpen} onClose={() => setDownloadOpen(false)} />}
+            {hasSeasons && <BulkDownloadModal movieId={movie.subjectId || movie.detailPath || ''} movieData={movie} seasonNumber={selectedSeason} seasons={movie.seasons?.map(season => season.seasonNumber)} isOpen={downloadOpen} onClose={() => setDownloadOpen(false)} />}
         </div>
     );
 };
